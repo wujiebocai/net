@@ -1,0 +1,160 @@
+#pragma once
+
+#include <any>
+#include <memory>
+#include <functional>
+#include <queue>
+#include <string_view>
+
+#include "net/base/iopool.hpp"
+#include "net/base/error.hpp"
+#include "net/base/stream.hpp"
+#include "net/base/session_mgr.hpp"
+#include "net/base/transfer_data.hpp"
+
+namespace net {
+	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>
+	class Session : public StreamType<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE>
+				  , public TransferData<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, PROTOCOLTYPE>
+				  , public std::enable_shared_from_this<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>> {
+	public:
+		using session_type = Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
+		using session_ptr_type = std::shared_ptr<session_type>;
+		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE>;
+		using key_type = std::size_t;
+	public:
+		template<class ...Args>
+		explicit Session(SessionMgr<session_type> & sessions, FuncProxyImpPtr & cbfunc, NIO & io,
+						std::size_t max_buffer_size, Args&&... args)
+			: stream_type(std::forward<Args>(args)...)
+			, cio_(io)
+			, cbfunc_(cbfunc)
+			, buffer_(max_buffer_size)
+			, sessions_(sessions)
+		{
+		}
+
+		~Session() = default;
+
+		template<bool iskeepalive = false>
+		inline void start(error_code ec) {
+			//if (!this->cio_.strand().running_in_this_thread())
+			//	return asio::post(this->cio_.strand(), std::bind(&session_type::start<iskeepalive>, this, std::move(ec)));
+			const auto& dptr = this->shared_from_this();
+			this->stream_post_handshake(dptr, [this, dptr = this->shared_from_this()](const error_code& ec) {
+				try {
+					State expected = State::stopped;
+					if (!ec && !this->state_.compare_exchange_strong(expected, State::starting))
+						asio::detail::throw_error(asio::error::already_started);
+					//cbfunc_->call(Event::accept, dptr, ec);
+
+					if constexpr (iskeepalive)
+						this->keep_alive_options();
+					else
+						std::ignore = true;
+
+					cbfunc_->call(Event::handshake, dptr, ec);
+
+					expected = State::starting;
+					if (!ec && !this->state_.compare_exchange_strong(expected, State::started))
+						asio::detail::throw_error(asio::error::operation_aborted);
+
+					cbfunc_->call(Event::connect, dptr, ec);
+
+					asio::detail::throw_error(ec);
+
+					//加入到sessionmgr
+					bool isadd = this->sessions_.emplace(dptr);
+					if (isadd)
+						this->do_recv();
+					else
+						this->stop(asio::error::address_in_use);
+				}
+				catch (system_error& e) {
+					set_last_error(e);
+					this->stop(e.code());
+				}
+			});
+		}
+
+		inline void stop(const error_code& ec) {
+			auto handlefunc = [this](session_ptr_type sessionptr, const error_code& ec, State oldstate) {
+				asio::post(this->cio_.strand(),
+				[this, ec, dptr = std::move(sessionptr), oldstate]() {
+					//从sessionmgr移除
+					bool isremove = this->sessions_.erase(dptr);
+					if (!isremove) {
+						return;
+					}
+					set_last_error(ec);
+					State expected = State::stopping;
+					if (this->state_.compare_exchange_strong(expected, State::stopped)) {
+						if (oldstate == State::started)
+							cbfunc_->call(Event::disconnect, dptr, ec);
+					}
+					else {
+						NET_ASSERT(false);
+					}
+					this->user_data_reset();
+					this->stream_stop(dptr);
+				});
+			};
+			State expected = State::starting;
+			if (this->state_.compare_exchange_strong(expected, State::stopping))
+				return handlefunc(this->shared_from_this(), ec, expected);
+
+			expected = State::started;
+			if (this->state_.compare_exchange_strong(expected, State::stopping))
+				return handlefunc(this->shared_from_this(), ec, expected);
+		}
+
+		inline bool is_started() const {
+			return (this->state_ == State::started && this->socket_.lowest_layer().is_open());
+		}
+		inline bool is_stopped() const {
+			return (this->state_ == State::stopped && !this->socket_.lowest_layer().is_open());
+		}
+
+		inline const key_type hash_key() const {
+			return reinterpret_cast<key_type>(this);
+		}
+
+		//imp(stream, self_shared_ptr, buffer, stop, is_started, handle_recv)
+		inline auto self_shared_ptr() { return this->shared_from_this(); }
+		inline asio::streambuf& buffer() { return buffer_; }
+		inline NIO& cio() { return cio_; }
+		inline void handle_recv(session_ptr_type dptr, std::string_view&& s) {
+			cbfunc_->call(Event::recv, dptr, s);
+		}
+
+
+		template<class DataT>
+		inline void user_data(DataT && data) {
+			this->user_data_ = std::forward<DataT>(data);
+		}
+		template<class DataT>
+		inline DataT* user_data() {
+			try {
+				return &(std::any_cast<DataT>(this->user_data_));
+			}
+			catch (const std::bad_any_cast&) {}
+			return nullptr;
+		}
+		inline void user_data_reset() {
+			this->user_data_.reset();
+		}
+
+	protected:
+		NIO & cio_;
+		asio::streambuf buffer_;
+		std::queue<std::function<bool()>>  send_queue_;
+
+		std::atomic<State> state_ = State::stopped;
+
+		SessionMgr<session_type>  & sessions_;
+
+		FuncProxyImpPtr & cbfunc_;
+
+		std::any user_data_;
+	};
+}
