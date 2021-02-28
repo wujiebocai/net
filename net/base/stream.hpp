@@ -75,7 +75,7 @@ namespace net {
 		}
 
 		inline void stream_stop(std::shared_ptr<DRIVERTYPE> dptr) {
-			//socket 没有关闭, async_shutdown回调函数也永远不会被调用.
+			//socket 娌℃湁鍏抽棴, async_shutdown鍥炶皟鍑芥暟涔熸案杩滀笉浼氳璋冪敤.
 			this->ssl_stream_.async_shutdown(asio::bind_executor(this->ssl_io_.strand(),
 				[this, dptr = std::move(dptr)](const error_code& ec) {
 				set_last_error(ec);
@@ -165,7 +165,7 @@ namespace net {
 		}
 	};
 #endif
-/////////////////kcp stream (具体逻辑有待实现)//////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////kcp stream (鍏蜂綋閫昏緫鏈夊緟瀹炵幇)//////////////////////////////////////////////////////////////////////////////////////////////
 	template<class DRIVERTYPE, class SOCKETTYPE>
 	class StreamType<DRIVERTYPE, SOCKETTYPE, kcp_stream_flag> : public Socket<SOCKETTYPE> {
 	public:

@@ -56,13 +56,13 @@ namespace net {
 		inline void bind(F&& f, Packet&& pcg) {
 			this->fn_ = [this, fn = std::forward<F>(f), pcg = std::move(pcg)](const char* buf, std::size_t len, Args&&... args) mutable {
 				using PacketType = unqualified_t<Packet>;
-				if constexpr (is_pb_proto_v<PacketType>) { //pb Ğ­Òé½âÎö
+				if constexpr (is_pb_proto_v<PacketType>) { //pb åè®®è§£æ
 					if (pcg.ParseFromArray(buf, len)) {
 						fn(pcg, std::forward<Args>(args)...);
 					}
 					return;
 				}
-				else /*if constexpr (is_struct_proto_v<PacketType>)*/ { //Ä¬ÈÏstruct Ğ­Òé½âÎö
+				else /*if constexpr (is_struct_proto_v<PacketType>)*/ { //é»˜è®¤struct åè®®è§£æ
 					if (len == sizeof(PacketType)) {
 						pcg = *(PacketType*)buf;
 						fn(pcg, std::forward<Args>(args)...);
@@ -77,13 +77,13 @@ namespace net {
 			using PacketType = unqualified_t<Packet>;
 			if constexpr (std::is_pointer_v<std::decay_t<C>> || is_shared_ptr_v<std::decay_t<C>>) {
 				this->fn_ = [this, fn = std::forward<F>(f), pcg = std::move(pcg), s = std::forward<C>(c)](const char* buf, std::size_t len, Args&&... args) mutable {
-					if constexpr (is_pb_proto_v<PacketType>) { //pb Ğ­Òé½âÎö
+					if constexpr (is_pb_proto_v<PacketType>) { //pb åè®®è§£æ
 						if (pcg.ParseFromArray(buf, len)) {
 							((*s).*fn)(pcg, std::forward<Args>(args)...);
 						}
 						return;
 					}
-					else /*if constexpr (is_struct_proto_v<PacketType>)*/ { //Ä¬ÈÏstruct Ğ­Òé½âÎö
+					else /*if constexpr (is_struct_proto_v<PacketType>)*/ { //é»˜è®¤struct åè®®è§£æ
 						if (len == sizeof(PacketType)) {
 							pcg = *(PacketType*)buf;
 							((*s).*fn)(pcg, std::forward<Args>(args)...);
@@ -94,13 +94,13 @@ namespace net {
 			}
 			else {
 				this->fn_ = [this, fn = std::forward<F>(f), pcg = std::move(pcg), s = std::forward<C>(c)](const char* buf, std::size_t len, Args&&... args) mutable {
-					if constexpr (is_pb_proto_v<PacketType>) { //pb Ğ­Òé½âÎö
+					if constexpr (is_pb_proto_v<PacketType>) { //pb åè®®è§£æ
 						if (pcg.ParseFromArray(buf, len)) {
 							(s.*fn)(pcg, std::forward<Args>(args)...);
 						}
 						return;
 					}
-					else /*if constexpr (is_struct_proto_v<PacketType>)*/ { //Ä¬ÈÏstruct Ğ­Òé½âÎö
+					else /*if constexpr (is_struct_proto_v<PacketType>)*/ { //é»˜è®¤struct åè®®è§£æ
 						if (len == sizeof(PacketType)) {
 							pcg = *(PacketType*)buf;
 							(s.*fn)(pcg, std::forward<Args>(args)...);
@@ -122,7 +122,7 @@ namespace net {
 		func_type fn_;
 	};
 
-	//Èç¹û°ó¶¨º¯ÊıÀàĞÍ²»Ö§³Ö, ×ÔĞĞÔö¼ÓÏàÓ¦½Ó¿Ú.
+	//å¦‚æœç»‘å®šå‡½æ•°ç±»å‹ä¸æ”¯æŒ, è‡ªè¡Œå¢åŠ ç›¸åº”æ¥å£.
 	template<typename IDXTYPE>
 	class msg_func_proxy_imp {
 	public:

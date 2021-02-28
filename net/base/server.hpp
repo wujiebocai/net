@@ -104,7 +104,7 @@ namespace net {
 			return (this->state_ == State::stopped);
 		}
 
-		//¹ã²¥ËùÓĞsession
+		//å¹¿æ’­æ‰€æœ‰session
 		inline void send(const std::string_view && data) {
 			this->sessions_.foreach([&data](session_ptr_type& session_ptr) {
 				session_ptr->send(data);

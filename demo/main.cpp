@@ -7,7 +7,7 @@ using namespace net;
 void tcp_test() {
 	auto svr = std::make_shared<TcpSvr>(8);
 
-	net::Timer testtimer(svr->get_iopool().get(0));   //²âÊÔĞÔÄÜ¼ÆÊ±Æ÷
+	net::Timer testtimer(svr->get_iopool().get(0));   //æµ‹è¯•æ€§èƒ½è®¡æ—¶å™¨
 	std::atomic<std::size_t> count{ 1 };
 	testtimer.post_timer(10 * 1000, [&count](const error_code& ec) {
 		std::cout << count / 10 << std::endl;
@@ -101,10 +101,10 @@ void tcp_ssl_test() {
 
 	auto svr = std::make_shared<TcpsSvr>(8);
 
-	svr->get_netstream().set_cert("test", cer, key, dh); // Ê¹ÓÃ×Ö·û´®²âÊÔ
-	//svr->get_netstream().set_cert_file("test", "server.crt", "server.key", "dh512.pem"); // Ê¹ÓÃÎÄ¼ş²âÊÔ
+	svr->get_netstream().set_cert("test", cer, key, dh); // ä½¿ç”¨å­—ç¬¦ä¸²æµ‹è¯•
+	//svr->get_netstream().set_cert_file("test", "server.crt", "server.key", "dh512.pem"); // ä½¿ç”¨æ–‡ä»¶æµ‹è¯•
 
-	net::Timer testtimer(svr->get_iopool().get(0));   //²âÊÔĞÔÄÜ¼ÆÊ±Æ÷
+	net::Timer testtimer(svr->get_iopool().get(0));   //æµ‹è¯•æ€§èƒ½è®¡æ—¶å™¨
 	std::atomic<std::size_t> count{ 1 };
 	testtimer.post_timer(10 * 1000, [&count](const error_code& ec) {
 		std::cout << count / 10 << std::endl;
@@ -135,8 +135,8 @@ void tcp_ssl_test() {
 
 	cli->start();
 
-	cli->get_netstream().set_cert(cer); //Ê¹ÓÃ×Ö·û´®²âÊÔ
-	//cli->get_netstream().set_cert_file("server.crt"); //Ê¹ÓÃÎÄ¼ş²âÊÔ
+	cli->get_netstream().set_cert(cer); //ä½¿ç”¨å­—ç¬¦ä¸²æµ‹è¯•
+	//cli->get_netstream().set_cert_file("server.crt"); //ä½¿ç”¨æ–‡ä»¶æµ‹è¯•
 
 	cli->bind(Event::handshake, [](CTcpsSessionPtr& ptr, error_code ec) {
 		std::cout << "handshake client" << ec.message() << std::endl;
@@ -160,7 +160,7 @@ void tcp_ssl_test() {
 #endif
 }
 
-///////////////////Ğ­Òé´úÀí²âÊÔ///////////////////////////////////////////////////////
+///////////////////åè®®ä»£ç†æµ‹è¯•///////////////////////////////////////////////////////
 struct protodata {
 	int a = 1;
 	int b = 2;
@@ -177,33 +177,33 @@ public:
 	}
 };
 void test_msg_proxy() {
-	//Ğ­Òé´úÀí²âÊÔ£¬Ö§³Öpb£¬ struct×÷ÎªĞ­Òé, ×¢²áµÃº¯ÊıÔ­ĞÍ£º³ıÁËµÚÒ»¸ö²ÎÊı±ØĞëÎªpb»òÕßstructĞ­Òé£¬ÆäËû²ÎÊıºÍ·µ»ØÖµ¶¼ËæÒâ.
+	//åè®®ä»£ç†æµ‹è¯•ï¼Œæ”¯æŒpbï¼Œ structä½œä¸ºåè®®, æ³¨å†Œå¾—å‡½æ•°åŸå‹ï¼šé™¤äº†ç¬¬ä¸€ä¸ªå‚æ•°å¿…é¡»ä¸ºpbæˆ–è€…structåè®®ï¼Œå…¶ä»–å‚æ•°å’Œè¿”å›å€¼éƒ½éšæ„.
 	net::MsgIdFuncProxyImpPtr msgproxy = std::make_shared<net::MSGIDPROXYTYPE>();
-	// ÒÔint×÷ÎªĞ­Òéid, ×¢²áĞ­Òé·½Ê½ÈçÏÂ£º
-	//×¢²áĞ­Òé½Ó¿ÚÎªº¯Êı
+	// ä»¥intä½œä¸ºåè®®id, æ³¨å†Œåè®®æ–¹å¼å¦‚ä¸‹ï¼š
+	//æ³¨å†Œåè®®æ¥å£ä¸ºå‡½æ•°
 	msgproxy->bind(1, test_struct_proto);
-	//×¢²áÎªlambd±í´ïÊ½
+	//æ³¨å†Œä¸ºlambdè¡¨è¾¾å¼
 	msgproxy->bind(2, [](protodata pb) {
 		std::cout << "lambda:" << pb.c << std::endl;
 	});
-	//×¢²áÎªÀà³ÉÔ±º¯Êı
+	//æ³¨å†Œä¸ºç±»æˆå‘˜å‡½æ•°
 	test_proto ctp;
 	msgproxy->bind(3, &test_proto::test_struct_proto, ctp);
-	msgproxy->bind(4, &test_proto::test_struct_proto, &ctp); //ctpÒ²¿ÉÒÔÎªÖÇÄÜÖ¸Õë
+	msgproxy->bind(4, &test_proto::test_struct_proto, &ctp); //ctpä¹Ÿå¯ä»¥ä¸ºæ™ºèƒ½æŒ‡é’ˆ
 
-	// ÒÔstring×÷ÎªĞ­Òéid
+	// ä»¥stringä½œä¸ºåè®®id
 	net::MsgStrFuncProxyImpPtr msgstrproxy = std::make_shared<net::MSGSTRPROXYTYPE>();
-	msgstrproxy->bind("login", test_struct_proto);  //×¢²áĞ­Òé´¦Àí½Ó¿Ú
+	msgstrproxy->bind("login", test_struct_proto);  //æ³¨å†Œåè®®å¤„ç†æ¥å£
 	msgstrproxy->bind("logout", [](protodata pb, int logoutcode) {
 		std::cout << "logout:" << logoutcode << std::endl;
 	});
 
-	//½ÓÊÕÊı¾İ½øĞĞĞ­Òé´¦Àí
+	//æ¥æ”¶æ•°æ®è¿›è¡Œåè®®å¤„ç†
 	protodata msgtest;
 	auto msglen = sizeof(msgtest);
 
-	msgproxy->call(1, (const char*)&msgtest, msglen);   //´¦ÀíĞ­Òé1
-	msgproxy->call(2, (const char*)&msgtest, msglen); // ´¦ÀíĞ­Òé2
+	msgproxy->call(1, (const char*)&msgtest, msglen);   //å¤„ç†åè®®1
+	msgproxy->call(2, (const char*)&msgtest, msglen); // å¤„ç†åè®®2
 
 	msgstrproxy->call("login", (const char*)&msgtest, msglen);
 	msgstrproxy->call("logout", (const char*)&msgtest, msglen, 12);
@@ -213,7 +213,7 @@ void test_msg_proxy() {
 asio::io_context g_context_(1);
 asio::io_context::strand g_context_s_(g_context_);
 int main(int argc, char * argv[]){
-	////ÒòÎªTcpSvrÓëTcpCli¶¼Ê¹ÓÃÁËstd::enable_shared_from_this£¬ËùÒÔ±ØĞëÒÔÖÇÄÜÖ¸Õë·½Ê½´´½¨£¬ºóÃæÔÚÓÅ»¯.
+	////å› ä¸ºTcpSvrä¸TcpCliéƒ½ä½¿ç”¨äº†std::enable_shared_from_thisï¼Œæ‰€ä»¥å¿…é¡»ä»¥æ™ºèƒ½æŒ‡é’ˆæ–¹å¼åˆ›å»ºï¼Œåé¢åœ¨ä¼˜åŒ–.
 	//tcp_test();
 
 	//tcp_ssl_test();
