@@ -11,6 +11,7 @@
 #include "net/base/stream.hpp"
 #include "net/base/session_mgr.hpp"
 #include "net/base/transfer_data.hpp"
+#include "net/tool/bytebuffer.hpp"
 
 namespace net {
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>
@@ -126,6 +127,7 @@ namespace net {
 		inline void handle_recv(session_ptr_type dptr, std::string_view&& s) {
 			cbfunc_->call(Event::recv, dptr, s);
 		}
+		inline t_buffer_cmdqueue<>& rbuffer() { return rbuff_; }
 
 
 		template<class DataT>
@@ -154,6 +156,8 @@ namespace net {
 		SessionMgr<session_type>  & sessions_;
 
 		FuncProxyImpPtr & cbfunc_;
+
+		t_buffer_cmdqueue<> rbuff_;
 
 		std::any user_data_;
 	};

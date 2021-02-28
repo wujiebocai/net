@@ -5,14 +5,16 @@
 #include <cstring>
 #include <assert.h>
 
+#include "net/tool/noncopyable.hpp"
+
 namespace net {
-	/// Ä¬ÈÏÄÚ´æ¿éµ¥Î»´óĞ¡
+	/// é»˜è®¤å†…å­˜å—å•ä½å¤§å°
 	const unsigned int trunkSize = 64 * 1024;
-	/// ¸ù¾İsize¼ÆËãÄÚ´æ¿éÊıÁ¿
-	/// size ´óĞ¡
+	/// æ ¹æ®sizeè®¡ç®—å†…å­˜å—æ•°é‡
+	/// size å¤§å°
 #define trunkCount(size, trunklen) (((size) + trunklen - 1) / trunklen)
 
-	// check»º´æÊÇ·ñ¿ÉÒÔ¶¯Ì¬À©³ä
+	// checkç¼“å­˜æ˜¯å¦å¯ä»¥åŠ¨æ€æ‰©å……
 	template<typename T>
 	struct buffer_is_dynamic {
 	private:
@@ -114,7 +116,7 @@ namespace net {
 		unsigned int _maxSize;
 		unsigned int _offPtr;
 		unsigned int _currPtr;
-		/// »º³åÇø
+		/// ç¼“å†²åŒº
 		_type _buffer;
 	};
 
@@ -131,9 +133,9 @@ namespace net {
 		//bytebuffer(const bytebuffer&);
 
 		inline void wr_reserve(const unsigned int size) {
-			//¾²Ì¬»º´æ²»ÄÜÀ©³ä
-			//Èç¹ûĞèÇóµÄ¾²Ì¬»º³å´óĞ¡Ğ¡ÓÚĞèÇóµÄ»º³å´óĞ¡£¬¿Ï¶¨»áµ¼ÖÂÕ»Òç³ö
-			//ÕâÀïÖ±½ÓÍË³öÔËĞĞÊÇ×î°²È«µÄ×ö·¨
+			//é™æ€ç¼“å­˜ä¸èƒ½æ‰©å……
+			//å¦‚æœéœ€æ±‚çš„é™æ€ç¼“å†²å¤§å°å°äºéœ€æ±‚çš„ç¼“å†²å¤§å°ï¼Œè‚¯å®šä¼šå¯¼è‡´æ ˆæº¢å‡º
+			//è¿™é‡Œç›´æ¥é€€å‡ºè¿è¡Œæ˜¯æœ€å®‰å…¨çš„åšæ³•
 			assert(wr_size() >= size);
 		}
 
@@ -205,13 +207,14 @@ namespace net {
 		unsigned int _maxSize;
 		unsigned int _offPtr;
 		unsigned int _currPtr;
-		/// »º³åÇø
+		/// ç¼“å†²åŒº
 		_type _buffer;
 	};
 
-	// ¶¯Ì¬ÄÚ´æµÄ»º³åÇø£¬¿ÉÒÔ¶¯Ì¬À©Õ¹»º³åÇø´óĞ¡
+	// åŠ¨æ€å†…å­˜çš„ç¼“å†²åŒºï¼Œå¯ä»¥åŠ¨æ€æ‰©å±•ç¼“å†²åŒºå¤§å°
 	template<unsigned int trunklen = trunkSize>
-	class t_buffer_cmdqueue : public bytebuffer<std::vector<char >, trunklen> {
+	class t_buffer_cmdqueue : public bytebuffer<std::vector<char >, trunklen>
+							, private noncopyable {
 	public:
 		using super = bytebuffer<std::vector<char >, trunklen>;
 		t_buffer_cmdqueue() : super() {
@@ -222,9 +225,10 @@ namespace net {
 		t_buffer_cmdqueue& operator=(const t_buffer_cmdqueue&) = delete;
 	};
 
-	// 	ÒÔÕ»¿Õ¼äÊı×éµÄ·½Ê½À´·ÖÅäÄÚ´æ,ÓÃÓÚÒ»Ğ©ÁÙÊ±±äÁ¿µÄ»ñÈ¡
+	// 	ä»¥æ ˆç©ºé—´æ•°ç»„çš„æ–¹å¼æ¥åˆ†é…å†…å­˜,ç”¨äºä¸€äº›ä¸´æ—¶å˜é‡çš„è·å–
 	template<unsigned int trunklen = trunkSize>
-	class t_static_cmdqueue : public bytebuffer<char[trunklen], trunklen> {
+	class t_static_cmdqueue : public bytebuffer<char[trunklen], trunklen>
+							, private noncopyable {
 	public:
 		using super = bytebuffer<char[trunklen], trunklen>;
 		t_static_cmdqueue() : super() {
