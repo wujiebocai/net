@@ -14,6 +14,7 @@ namespace net {
 		using server_type = Server<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_type = Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
+		using session_weakptr_type = std::weak_ptr<session_type>;
 		using listener_type = Listener<server_type, session_type>;
 		using netstream_type = NetStream<SOCKETTYPE, STREAMTYPE>;
 	public:
@@ -141,6 +142,11 @@ namespace net {
 		template<class ...Args>
 		bool bind(Args&&... args) {
 			return cbfunc_->bind(std::move(args)...);
+		}
+
+		template<class ...Args>
+		bool call(Args&&... args) {
+			return cbfunc_->call(std::move(args)...);
 		}
 
 		auto& get_iopool() { return iopool_; }

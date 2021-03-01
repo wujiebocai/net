@@ -24,12 +24,16 @@ using TcpSvr = net::Server<asio::ip::tcp::socket, net::binary_stream_flag>;
 using TcpCli = net::Client<asio::ip::tcp::socket, net::binary_stream_flag>;
 using STcpSessionPtr = TcpSvr::session_ptr_type;
 using CTcpSessionPtr = TcpCli::session_ptr_type;
+using STcpSessionWeakPtr = TcpSvr::session_weakptr_type;
+using CTcpSessionWeakPtr = TcpCli::session_weakptr_type;
 
 //tcps
 using TcpsSvr = net::Server<asio::ip::tcp::socket, net::ssl_stream_flag>;
 using TcpsCli = net::Client<asio::ip::tcp::socket, net::ssl_stream_flag>;
 using STcpsSessionPtr = TcpsSvr::session_ptr_type;
 using CTcpsSessionPtr = TcpsCli::session_ptr_type;
+using STcpsSessionWeakPtr = TcpSvr::session_weakptr_type;
+using CTcpsSessionWeakPtr = TcpCli::session_weakptr_type;
 
 //下面得都有待实现
 //udp

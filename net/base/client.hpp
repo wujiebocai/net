@@ -22,6 +22,7 @@ namespace net {
 		using endpoints_iterator = typename endpoints_type::iterator;
 		using session_type = Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
+		using session_weakptr_type = std::weak_ptr<session_type>;
 	public:
 		template<class ...Args>
 		explicit Client(std::size_t concurrency = std::thread::hardware_concurrency() * 2, std::size_t max_buffer_size = (std::numeric_limits<std::size_t>::max)())
@@ -66,6 +67,12 @@ namespace net {
 		bool bind(Args&&... args) {
 			return cbfunc_->bind(std::move(args)...);
 		}
+
+		template<class ...Args>
+		bool call(Args&&... args) {
+			return cbfunc_->call(std::move(args)...);
+		}
+
 		auto& get_netstream() { return streamcxt_; }
 
 		//广播所有session
