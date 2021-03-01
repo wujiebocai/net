@@ -1,8 +1,8 @@
 #pragma once
 
-#include "net/base/iopool.hpp"
-#include "net/base/error.hpp"
-#include "net/base/session.hpp"
+#include "base/iopool.hpp"
+#include "base/error.hpp"
+#include "base/session.hpp"
 
 namespace net {
 	template<class SERVERTYPE, class SESSIONTYPE>

@@ -6,12 +6,12 @@
 #include <queue>
 #include <string_view>
 
-#include "net/base/iopool.hpp"
-#include "net/base/error.hpp"
-#include "net/base/stream.hpp"
-#include "net/base/session_mgr.hpp"
-#include "net/base/transfer_data.hpp"
-#include "net/tool/bytebuffer.hpp"
+#include "base/iopool.hpp"
+#include "base/error.hpp"
+#include "base/stream.hpp"
+#include "base/session_mgr.hpp"
+#include "base/transfer_data.hpp"
+#include "tool/bytebuffer.hpp"
 
 namespace net {
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>

@@ -6,7 +6,7 @@
 #include <chrono>
 #include <type_traits>
 
-#include "net/base/define.hpp"
+#include "base/define.hpp"
 
 namespace net {
 	class NIO {

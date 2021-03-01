@@ -214,7 +214,7 @@ asio::io_context g_context_(1);
 asio::io_context::strand g_context_s_(g_context_);
 int main(int argc, char * argv[]){
 	////因为TcpSvr与TcpCli都使用了std::enable_shared_from_this，所以必须以智能指针方式创建，后面在优化.
-	//tcp_test();
+	tcp_test();
 
 	//tcp_ssl_test();
 

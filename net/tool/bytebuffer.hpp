@@ -5,7 +5,7 @@
 #include <cstring>
 #include <assert.h>
 
-#include "net/tool/noncopyable.hpp"
+#include "tool/noncopyable.hpp"
 
 namespace net {
 	/// 默认内存块单位大小

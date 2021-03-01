@@ -7,7 +7,7 @@
 #include <functional>
 #include <type_traits>
 
-#include "net/base/iopool.hpp"
+#include "base/iopool.hpp"
 
 namespace net {
 	template<class SESSIONTYPE>

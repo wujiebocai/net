@@ -6,11 +6,11 @@
 #include <asio/ssl.hpp>
 #endif
 
-#include "net/base/server.hpp"
-#include "net/base/client.hpp"
+#include "base/server.hpp"
+#include "base/client.hpp"
 
-#include "net/tool/bytebuffer.hpp"
-#include "net/tool/msg_proxy.hpp"
+#include "tool/bytebuffer.hpp"
+#include "tool/msg_proxy.hpp"
 
 /*
 net：

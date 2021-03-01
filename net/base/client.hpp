@@ -4,10 +4,10 @@
 #include <future>
 #include <string_view>
 
-#include "net/base/iopool.hpp"
-#include "net/base/session.hpp"
-#include "net/base/error.hpp"
-#include "net/base/timer.hpp"
+#include "base/iopool.hpp"
+#include "base/session.hpp"
+#include "base/error.hpp"
+#include "base/timer.hpp"
 
 namespace net {
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>
@@ -67,6 +67,17 @@ namespace net {
 			return cbfunc_->bind(std::move(args)...);
 		}
 		auto& get_netstream() { return streamcxt_; }
+
+		//广播所有session
+		inline void send(const std::string_view && data) {
+			this->sessions_.foreach([&data](session_ptr_type& session_ptr) {
+				session_ptr->send(data);
+			});
+		}
+
+		inline session_ptr_type find_session_if(const std::function<bool(session_ptr_type&)> & fn) {
+			return session_ptr_type(this->sessions_.find_if(fn));
+		}
 	protected:
 		// tcp connect
 		template<bool isAsync = true, bool isKeepAlive = false, typename = std::enable_if_t<is_tcp_socket_v<SOCKETTYPE>>>

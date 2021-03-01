@@ -2,9 +2,9 @@
 
 #include <memory>
 
-#include "net/base/iopool.hpp"
-#include "net/base/error.hpp"
-#include "net/base/socket.hpp"
+#include "base/iopool.hpp"
+#include "base/error.hpp"
+#include "base/socket.hpp"
 
 
 namespace net {

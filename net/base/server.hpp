@@ -1,9 +1,9 @@
 #pragma once
 
 #include <string_view>
-#include "net/base/iopool.hpp"
-#include "net/base/error.hpp"
-#include "net/base/listener.hpp"
+#include "base/iopool.hpp"
+#include "base/error.hpp"
+#include "base/listener.hpp"
 
 namespace net {
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>

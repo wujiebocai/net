@@ -5,7 +5,7 @@
 #include <Mstcpip.h> // tcp_keepalive struct
 #endif
 
-#include "net/base/error.hpp"
+#include "base/error.hpp"
 
 namespace net {
 	// SOCKETTYPE : tcp or udp or websocket

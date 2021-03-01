@@ -2,7 +2,7 @@
 
 #include <type_traits>
 
-#include "net/tool/help_type.hpp"
+#include "tool/help_type.hpp"
 
 namespace net {
 	enum class State : std::int8_t { stopped, stopping, starting, started };
@@ -12,6 +12,7 @@ namespace net {
 		connect,
 		disconnect,
 		recv,
+		packet,
 		handshake,
 		max
 	};

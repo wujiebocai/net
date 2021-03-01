@@ -1,7 +1,7 @@
 #pragma once
 
-#include "net/base/iopool.hpp"
-#include "net/base/error.hpp"
+#include "base/iopool.hpp"
+#include "base/error.hpp"
 
 namespace net {
 	template<class DRIVERTYPE, class SOCKETTYPE, class PROTOCOLTYPE = void>
