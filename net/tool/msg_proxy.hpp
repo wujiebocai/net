@@ -19,8 +19,21 @@ namespace net {
 	char(&parse_memfn_checker(...))[2];
 	template <typename T>
 	char parse_memfn_checker(check_struct_memfns_check<void (check_struct_memfns_base::*)(), &check_struct_memfns_derived<T>::ParseFromArray>*);
-	template<typename T>
+	/*template<typename T> //无法处理final类
 	struct is_pb_proto : std::integral_constant<bool, sizeof(parse_memfn_checker<T>(0)) != 1> {
+	};*/
+	template<typename T>
+	struct proto_has_parse {
+	private:
+		template<typename U>
+		static auto check(bool) -> decltype(std::declval<U>().ParseFromArray((const void*)(0), int(0)), std::true_type());
+		template<typename U>
+		static std::false_type check(...);
+	public:
+		static constexpr bool value = std::is_same_v<decltype(check<T>(true)), std::true_type>;
+	};
+	template<typename T>
+	struct is_pb_proto : proto_has_parse<T> {
 	};
 	template<typename T>
 	constexpr bool is_pb_proto_v = is_pb_proto<unqualified_t<T>>::value;
