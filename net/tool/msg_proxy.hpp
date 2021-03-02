@@ -163,7 +163,7 @@ namespace net {
 
 		template<class Ret, class Packet, class ...Args>
 		inline bool bind(IDXTYPE evt, Ret(*f)(Packet, Args...)) {
-			Packet pcg;
+			unqualified_t<Packet> pcg;
 			return this->bind_t(evt, msg_func_proxy<Args...>(f, pcg));
 		}
 		//reference OR point
@@ -172,7 +172,7 @@ namespace net {
 			if constexpr (std::is_pointer_v<std::decay_t<T>>) {
 				CHECK_POINT(c);
 			}
-			Packet pcg;
+			unqualified_t<Packet> pcg;
 			return this->bind_t(evt, msg_func_proxy<Args...>(f, pcg, std::forward<T>(c)));
 		}
 		template<class Ret, class C, class Packet, class ...Args, class T, typename = std::enable_if_t<is_same_category_t<C, T>>>
@@ -180,7 +180,7 @@ namespace net {
 			if constexpr (std::is_pointer_v<std::decay_t<T>>) {
 				CHECK_POINT(c);
 			}
-			Packet pcg;
+			unqualified_t<Packet> pcg;
 			return this->bind_t(evt, msg_func_proxy<Args...>(f, pcg, std::forward<T>(c)));
 		}
 		template<class Callable, typename = std::enable_if_t<std::is_class<Callable>::value>>
@@ -191,7 +191,7 @@ namespace net {
 		template<class Ret, class C, class Packet, class ...Args>
 		inline bool bind(IDXTYPE evt, Ret(C::* f)(Packet, Args...), std::shared_ptr<std::decay_t<C>> c) {
 			CHECK_POINT(c);
-			Packet pcg;
+			unqualified_t<Packet> pcg;
 			return this->bind_t(evt, msg_func_proxy<Args...>(f, pcg, c));
 		}
 	protected:
