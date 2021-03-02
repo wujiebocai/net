@@ -141,12 +141,12 @@ namespace net {
 
 		template<class ...Args>
 		bool bind(Args&&... args) {
-			return cbfunc_->bind(std::move(args)...);
+			return cbfunc_->bind(std::forward<Args>(args)...);
 		}
 
 		template<class ...Args>
 		bool call(Args&&... args) {
-			return cbfunc_->call(std::move(args)...);
+			return cbfunc_->call(std::forward<Args>(args)...);
 		}
 
 		auto& get_iopool() { return iopool_; }
