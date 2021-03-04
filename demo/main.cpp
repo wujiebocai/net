@@ -21,7 +21,7 @@ void tcp_test() {
 	svr->bind(Event::disconnect, [](STcpSessionPtr& ptr, error_code ec) {
 		std::cout << "disconnect" << std::endl;
 	});
-	svr->bind(Event::recv, [&](STcpSessionPtr& ptr, std::string_view&& s) {
+	svr->bind(Event::recv, [&](STcpSessionPtr& ptr, std::string&& s) {
 		//std::cout << s << std::endl;
 		ptr->send(std::move(s));
 		++count;
@@ -44,7 +44,7 @@ void tcp_test() {
 	cli->bind(Event::disconnect, [](CTcpSessionPtr& ptr, error_code ec) {
 		std::cout << "disconnect client" << std::endl;
 	});
-	cli->bind(Event::recv, [](CTcpSessionPtr& ptr, std::string_view&& s) {
+	cli->bind(Event::recv, [](CTcpSessionPtr& ptr, std::string&& s) {
 		ptr->send(std::move(s));
 	});
 

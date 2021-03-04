@@ -124,8 +124,8 @@ namespace net {
 		inline auto self_shared_ptr() { return this->shared_from_this(); }
 		inline asio::streambuf& buffer() { return buffer_; }
 		inline NIO& cio() { return cio_; }
-		inline void handle_recv(session_ptr_type dptr, std::string_view&& s) {
-			cbfunc_->call(Event::recv, dptr, s);
+		inline void handle_recv(session_ptr_type dptr, std::string&& s) {
+			cbfunc_->call(Event::recv, std::move(dptr), std::move(s));
 		}
 		inline t_buffer_cmdqueue<>& rbuffer() { return rbuff_; }
 

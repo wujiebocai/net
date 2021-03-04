@@ -45,8 +45,8 @@ namespace net {
 				{
 					set_last_error(ec);
 					if (!ec) {
-						this->derive_.handle_recv(selfptr, std::string_view(reinterpret_cast<
-							std::string_view::const_pointer>(this->derive_.buffer().data().data()), bytes_recvd));
+						this->derive_.handle_recv(selfptr, std::string(reinterpret_cast<
+							std::string::const_pointer>(this->derive_.buffer().data().data()), bytes_recvd));
 
 						this->derive_.buffer().consume(bytes_recvd);
 
