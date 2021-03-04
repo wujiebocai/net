@@ -137,7 +137,7 @@ namespace net {
 		template<class DataT>
 		inline DataT* user_data() {
 			try {
-				return &(std::any_cast<DataT>(this->user_data_));
+				return std::any_cast<DataT>(&this->user_data_);
 			}
 			catch (const std::bad_any_cast&) {}
 			return nullptr;

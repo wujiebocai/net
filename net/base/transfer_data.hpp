@@ -11,7 +11,7 @@ namespace net {
 
 		~TransferData() = default;
 
-		inline bool send(const std::string_view&& data) {
+		inline bool send(const std::string&& data) {
 			try {
 				if (!this->derive_.is_started())
 					asio::detail::throw_error(asio::error::not_connected);
