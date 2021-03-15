@@ -39,13 +39,14 @@ namespace net {
 
 		~Client() {
 			this->iopool_.stop();
-			this->stop(asio::error::operation_aborted);
+			//this->stop(asio::error::operation_aborted);
 		}
 
 		template<bool isAsync = true, bool isKeepAlive = false, typename = std::enable_if_t<is_tcp_socket_v<SOCKETTYPE>>>
 		inline bool add(std::string_view host, std::string_view port) {
 			clear_last_error();
-			return this->template connect<isAsync, isKeepAlive>(host, port);
+			std::shared_ptr<session_type> session_ptr = this->make_session();
+			return this->template connect<isAsync, isKeepAlive>(session_ptr, host, port);
 		}
 
 		inline bool start() {
@@ -88,9 +89,11 @@ namespace net {
 	protected:
 		// tcp connect
 		template<bool isAsync = true, bool isKeepAlive = false, typename = std::enable_if_t<is_tcp_socket_v<SOCKETTYPE>>>
-		inline bool connect(const std::string_view& host, const std::string_view& port) {
-			std::shared_ptr<session_type> session_ptr = this->make_session();
+		inline bool connect(session_ptr_type& session_ptr, const std::string_view& host, const std::string_view& port) {
 			try {
+				if (!session_ptr) {
+					return false;
+				}
 				this->host_ = host;
 				this->port_ = port;
 
