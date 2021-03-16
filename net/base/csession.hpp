@@ -5,47 +5,44 @@
 #include <string_view>
 #include <string>
 
-#include "net/base/iopool.hpp"
-#include "net/base/error.hpp"
-#include "net/base/cb_event.hpp"
-#include "net/base/timer.hpp"
-#include "net/base/transfer_data.hpp"
+#include "base/iopool.hpp"
+#include "base/error.hpp"
+#include "base/session_mgr.hpp"
+#include "base/stream.hpp"
+#include "base/timer.hpp"
+#include "base/transfer_data.hpp"
+#include "tool/bytebuffer.hpp"
 
 namespace net {
-	// SOCKETTYPE : tcp or udp
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>
-	class Client : public IoPoolImp
-				 , public Socket<SOCKETTYPE>
-				 , public TransferData<Client<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, PROTOCOLTYPE>
-				 , public std::enable_shared_from_this<Client<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>>
-		{
+	class CSession : public StreamType<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE>
+				   , public TransferData<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, PROTOCOLTYPE>
+				   , public std::enable_shared_from_this<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>> {
 	public:
-		using client_type = Client<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
-		using client_type_ptr = std::shared_ptr<client_type>;
-		using socket_type = Socket<SOCKETTYPE>;
+		using session_type = CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
+		using session_ptr_type = std::shared_ptr<session_type>;
+		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE>;
+		using key_type = std::size_t;
 		using resolver_type = typename asio::ip::basic_resolver<typename SOCKETTYPE::protocol_type>;
 		using endpoints_type = typename resolver_type::results_type;
 		using endpoint_type = typename SOCKETTYPE::lowest_layer_type::endpoint_type;
 		using endpoints_iterator = typename endpoints_type::iterator;
 	public:
 		template<class ...Args>
-		explicit Client(std::size_t concurrency, std::size_t max_buffer_size, Args&&... args)
-			: IoPoolImp(concurrency)
-			, socket_type(iopool_.get(0).context(), std::forward<Args>(args)...)
-			, cio_(iopool_.get(0))
-			, cbfunc_(std::make_shared<CBPROXYTYPE>())
+		explicit CSession(SessionMgr<session_type>& sessions, FuncProxyImpPtr& cbfunc, NIO& io,
+						std::size_t max_buffer_size, Args&&... args)
+			: stream_type(std::forward<Args>(args)...)
+			, cio_(io)
+			, cbfunc_(cbfunc)
 			, buffer_(max_buffer_size)
+			, sessions_(sessions)
 			, ctimer_(cio_)
 		{
-			this->iopool_.start();
 		}
 
-		~Client() {
-			this->iopool_.stop();
-			this->stop(asio::error::operation_aborted);
-		}
+		~CSession() = default;
 
-		template<bool isAsync = true, bool isKeepAlive = false>
+		template<bool isAsync = true, bool isKeepAlive = false, typename = std::enable_if_t<is_tcp_socket_v<SOCKETTYPE>>>
 		bool start(std::string_view host, std::string_view port) {
 			State expected = State::stopped;
 			if (!this->state_.compare_exchange_strong(expected, State::starting)) {
@@ -65,19 +62,24 @@ namespace net {
 		}
 
 		inline void stop(const error_code& ec) {
-			auto handlefunc = [this](const error_code& ec, client_type_ptr self_ptr, State old_state) {
-				asio::post(this->cio_.strand(), [this, ec, this_ptr = std::move(self_ptr), old_state]() {
+			auto handlefunc = [this](const error_code& ec, session_ptr_type sessionptr, State oldstate) {
+				asio::post(this->cio_.strand(), [this, ec, dptr = std::move(sessionptr), oldstate]() {
 					set_last_error(ec);
 
+					this->user_data_reset();
+					this->stream_stop(dptr);
 					State expected = State::stopping;
 					if (this->state_.compare_exchange_strong(expected, State::stopped)) {
-						cbfunc_->call(Event::disconnect, this_ptr, ec);
+						cbfunc_->call(Event::disconnect, dptr, ec);
 					}
 					else {
 						NET_ASSERT(false);
 					}
-					this->user_data_reset();
-					this->socket_.close();
+					//从sessionmgr移除
+					bool isremove = this->sessions_.erase(dptr);
+					if (!isremove) {
+						return;
+					}
 				});
 			};
 			State expected = State::starting;
@@ -89,6 +91,63 @@ namespace net {
 				return handlefunc(ec, this->shared_from_this(), expected);
 		}
 
+		// 重连机制
+		inline typename std::enable_if_t<is_tcp_socket_v<SOCKETTYPE>, bool>
+		reconn() {
+			if (!is_stopped()) {
+				return false;
+			}
+			ctimer_.post_timer<false>(3 * 1000, [this, dptr = this->shared_from_this()](const error_code& ec) {
+				auto ret = this->start<false>(this->host_, this->port_);
+				//std::cout << "reconn:" << ret << std::endl;
+			});
+		}
+
+		//asio::ip::tcp::endpoint ep(asio::ip::tcp::v4(), 1234);
+		//asio::ip::udp::endpoint ep(asio::ip::udp::v6(), 9876);
+		//asio::ip::tcp::endpoint ep(asio::ip::address_v4::from_string("..."), 1234);
+		//asio::ip::udp::endpoint ep(asio::ip::address_v6::from_string("..."), 9876);
+		template<typename IP>
+		inline void endpoint(const IP& ip, unsigned short port) {
+			this->endpoint_ = endpoint_type(ip, port);
+		}
+		inline endpoint_type& endpoint() { return this->endpoint_; }
+
+		//imp
+		inline auto self_shared_ptr() { return this->shared_from_this(); }
+		inline asio::streambuf& buffer() { return buffer_; }
+		inline NIO& cio() { return cio_; }
+		inline void handle_recv(session_ptr_type dptr, std::string&& s) {
+			cbfunc_->call(Event::recv, std::move(dptr), std::move(s));
+		}
+		inline t_buffer_cmdqueue<>& rbuffer() { return rbuff_; }
+
+		inline bool is_started() const {
+			return (this->state_ == State::started && this->socket_.lowest_layer().is_open());
+		}
+		inline bool is_stopped() const {
+			return (this->state_ == State::stopped && !this->socket_.lowest_layer().is_open());
+		}
+		inline const key_type hash_key() const {
+			return reinterpret_cast<key_type>(this);
+		}
+
+		template<class DataT>
+		inline void user_data(DataT&& data) {
+			this->user_data_ = std::forward<DataT>(data);
+		}
+		template<class DataT>
+		inline DataT* user_data() {
+			try {
+				return std::any_cast<DataT>(&this->user_data_);
+			}
+			catch (const std::bad_any_cast&) {}
+			return nullptr;
+		}
+		inline void user_data_reset() {
+			this->user_data_.reset();
+		}
+	protected:
 		// tcp connect
 		template<bool isAsync = true, bool isKeepAlive = false, typename = std::enable_if_t<is_tcp_socket_v<SOCKETTYPE>>>
 		bool connect(const std::string_view& host, const std::string_view& port) {
@@ -178,89 +237,56 @@ namespace net {
 		inline void handle_connect(error_code ec) {
 			try {
 				ctimer_.stop();
-
-				State expected = State::starting;
-				if (!ec && !this->state_.compare_exchange_strong(expected, State::started))
-					ec = asio::error::operation_aborted;
-				
-				set_last_error(ec);
-
-				auto dptr = this->shared_from_this();
-
-				cbfunc_->call(Event::connect, dptr, ec);
-
 				asio::detail::throw_error(ec);
 
-				if (!ec) {
-					this->do_recv();
-				}
+				const auto& dptr = this->shared_from_this();
+				this->stream_post_handshake(dptr, [this, dptr = this->shared_from_this()](const error_code& ec) {
+					try {
+						cbfunc_->call(Event::handshake, dptr, ec);
+
+						State expected = State::starting;
+						if (!ec && !this->state_.compare_exchange_strong(expected, State::started))
+							asio::detail::throw_error(asio::error::operation_aborted);
+
+						cbfunc_->call(Event::connect, dptr, ec);
+
+						asio::detail::throw_error(ec);
+
+						//加入到sessionmgr
+						bool isadd = this->sessions_.emplace(dptr);
+						if (isadd)
+							this->do_recv();
+						else
+							this->stop(asio::error::address_in_use);
+					}
+					catch (system_error& e) {
+						set_last_error(e);
+						this->stop(e.code());
+					}
+				});
 			}
 			catch (system_error & e) {
 				set_last_error(e);
 				this->stop(e.code());
 			}
 		}
-
-		template<class ...Args>
-		bool bind(Args&&... args) {
-			return cbfunc_->bind(std::move(args)...);
-		}
-
-		//asio::ip::tcp::endpoint ep(asio::ip::tcp::v4(), 1234);
-		//asio::ip::udp::endpoint ep(asio::ip::udp::v6(), 9876);
-		//asio::ip::tcp::endpoint ep(asio::ip::address_v4::from_string("..."), 1234);
-		//asio::ip::udp::endpoint ep(asio::ip::address_v6::from_string("..."), 9876);
-		template<typename IP>
-		inline void endpoint(const IP& ip, unsigned short port) {
-			this->endpoint_ = endpoint_type(ip, port);
-		}
-		inline endpoint_type& endpoint() { return this->endpoint_; }
-
-		//imp
-		inline auto self_shared_ptr() { return this->shared_from_this(); }
-		inline asio::streambuf& buffer() { return buffer_; }
-		inline NIO& cio() { return cio_; }
-		inline void handle_recv(client_type_ptr dptr, std::string_view&& s) {
-			cbfunc_->call(Event::recv, dptr, s);
-		}
-		inline bool is_started() const {
-			return (this->state_ == State::started && this->socket_.lowest_layer().is_open());
-		}
-		inline bool is_stopped() const {
-			return (this->state_ == State::stopped && !this->socket_.lowest_layer().is_open());
-		}
-
-		template<class DataT>
-		inline void user_data(DataT&& data) {
-			this->user_data_ = std::forward<DataT>(data);
-		}
-		template<class DataT>
-		inline DataT* user_data() {
-			try {
-				return &(std::any_cast<DataT>(this->user_data_));
-			}
-			catch (const std::bad_any_cast&) {}
-			return nullptr;
-		}
-		inline void user_data_reset() {
-			this->user_data_.reset();
-		}
 	protected:
-		NIO & cio_; //
+		NIO & cio_;
+		asio::streambuf buffer_;
 
 		endpoint_type endpoint_;
-
 		endpoints_type endpoints_;
-
 		std::string host_, port_;
 
 		std::atomic<State> state_ = State::stopped;
 
-		asio::streambuf buffer_;
-
-		Timer ctimer_; 
+		SessionMgr<session_type>& sessions_;
 
 		FuncProxyImpPtr cbfunc_;
+
+		Timer ctimer_;
+
+		t_buffer_cmdqueue<> rbuff_;
 
 		std::any user_data_;
 	};

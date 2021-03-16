@@ -149,7 +149,6 @@ namespace net {
 	protected:
 		NIO & cio_;
 		asio::streambuf buffer_;
-		std::queue<std::function<bool()>>  send_queue_;
 
 		std::atomic<State> state_ = State::stopped;
 

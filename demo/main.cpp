@@ -121,7 +121,7 @@ void tcp_ssl_test() {
 	svr->bind(Event::disconnect, [](STcpsSessionPtr& ptr, error_code ec) {
 		std::cout << "disconnect" << std::endl;
 	});
-	svr->bind(Event::recv, [&](STcpsSessionPtr& ptr, std::string_view&& s) {
+	svr->bind(Event::recv, [&](STcpsSessionPtr& ptr, std::string&& s) {
 		//std::cout << s << std::endl;
 		ptr->send(std::move(s));
 		++count;
@@ -150,7 +150,7 @@ void tcp_ssl_test() {
 	cli->bind(Event::disconnect, [](CTcpsSessionPtr& ptr, error_code ec) {
 		std::cout << "disconnect client" << std::endl;
 	});
-	cli->bind(Event::recv, [](CTcpsSessionPtr& ptr, std::string_view&& s) {
+	cli->bind(Event::recv, [](CTcpsSessionPtr& ptr, std::string&& s) {
 		ptr->send(std::move(s));
 	});
 
@@ -218,7 +218,7 @@ int main(int argc, char * argv[]){
 
 	//tcp_ssl_test();
 
-	test_msg_proxy();
+	//test_msg_proxy();
 
 	auto io_worker = asio::make_work_guard(g_context_);
 	g_context_.run();
