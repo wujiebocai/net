@@ -101,6 +101,7 @@ namespace net {
 				auto ret = this->start<false>(this->host_, this->port_);
 				//std::cout << "reconn:" << ret << std::endl;
 			});
+			return true;
 		}
 
 		//asio::ip::tcp::endpoint ep(asio::ip::tcp::v4(), 1234);
