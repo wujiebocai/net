@@ -73,7 +73,7 @@ namespace net {
 		}
 
 		inline void post_stop(const error_code& ec, State old_state) {
-			asio::post(this->accept_io_.strand(), [this, ec, this_ptr = this->shared_from_this(), old_state]() {
+			asio::post(this->cio_.strand(), [this, ec, this_ptr = this->shared_from_this(), old_state]() {
 				set_last_error(ec);
 
 				this->sessions_.foreach([this, ec](session_ptr_type& session_ptr) {
@@ -83,7 +83,6 @@ namespace net {
 				State expected = State::stopping;
 				if (this->state_.compare_exchange_strong(expected, State::stopped)) {
 					//cbfunc_->call(Event::stop);
-					this->listener_stop();
 				}
 				else
 					NET_ASSERT(false);
