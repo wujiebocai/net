@@ -9,6 +9,7 @@
 namespace net {
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>
 	class Client : public IoPoolImp
+				 , public NetStream<SOCKETTYPE, STREAMTYPE>
 				 , public std::enable_shared_from_this<Client<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>> {
 	public:
 		using resolver_type = typename asio::ip::basic_resolver<typename SOCKETTYPE::protocol_type>;
@@ -18,15 +19,16 @@ namespace net {
 		using session_type = CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
 		using session_weakptr_type = std::weak_ptr<session_type>;
+		using netstream_type = NetStream<SOCKETTYPE, STREAMTYPE>;
 	public:
 		template<class ...Args>
 		explicit Client(std::size_t concurrency = std::thread::hardware_concurrency() * 2, std::size_t max_buffer_size = (std::numeric_limits<std::size_t>::max)())
 			: IoPoolImp(concurrency)
+			, netstream_type(client_place{})
 			, cio_(iopool_.get(0))
 			, cbfunc_(std::make_shared<CBPROXYTYPE>())
 			, sessions_(cio_)
 			, max_buffer_size_(max_buffer_size)
-			, streamcxt_(client_place{})
 		{
 			this->iopool_.start();
 		}
@@ -93,7 +95,7 @@ namespace net {
 			auto& cio = this->iopool_.get();
 			if constexpr (is_ssl_streamtype_v<STREAMTYPE>) {
 				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio, this->max_buffer_size_
-					, cio, streamcxt_, asio::ssl::stream_base::client, cio.context());
+					, cio, *this, asio::ssl::stream_base::client, cio.context());
 			}
 			if constexpr (is_binary_streamtype_v<STREAMTYPE>) {
 				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio, this->max_buffer_size_
@@ -120,8 +122,6 @@ namespace net {
 			return cbfunc_->call(std::forward<Args>(args)...);
 		}
 
-		auto& get_netstream() { return streamcxt_; }
-
 		//广播所有session
 		inline void send(const std::string_view && data) {
 			this->sessions_.foreach([&data](session_ptr_type& session_ptr) {
@@ -141,7 +141,5 @@ namespace net {
 		std::atomic<State> state_ = State::stopped;
 
 		FuncProxyImpPtr cbfunc_;
-
-		NetStream<SOCKETTYPE, STREAMTYPE> streamcxt_;
 	};
 }

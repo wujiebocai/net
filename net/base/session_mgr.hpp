@@ -14,7 +14,7 @@ namespace net {
 	class SessionMgr {
 	public:
 		using self = SessionMgr<SESSIONTYPE>;
-		using key_type = std::size_t;
+		using key_type = typename SESSIONTYPE::key_type;
 	public:
 		explicit SessionMgr(NIO& io) : cio_(io) {
 			this->sessions_.reserve(64);

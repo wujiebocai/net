@@ -22,11 +22,11 @@ namespace net {
 		using session_type = CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
 		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE>;
-		using key_type = std::size_t;
 		using resolver_type = typename asio::ip::basic_resolver<typename SOCKETTYPE::protocol_type>;
 		using endpoints_type = typename resolver_type::results_type;
 		using endpoint_type = typename SOCKETTYPE::lowest_layer_type::endpoint_type;
 		using endpoints_iterator = typename endpoints_type::iterator;
+		using key_type = typename std::conditional<is_udp_socket_v<SOCKETTYPE>, asio::ip::udp::endpoint, std::size_t>::type;
 	public:
 		template<class ...Args>
 		explicit CSession(SessionMgr<session_type>& sessions, FuncProxyImpPtr& cbfunc, NIO& io,
@@ -42,7 +42,7 @@ namespace net {
 
 		~CSession() = default;
 
-		template<bool isAsync = true, bool isKeepAlive = false, typename = std::enable_if_t<is_tcp_socket_v<SOCKETTYPE>>>
+		template<bool isAsync = true, bool isKeepAlive = false>
 		bool start(std::string_view host, std::string_view port) {
 			State expected = State::stopped;
 			if (!this->state_.compare_exchange_strong(expected, State::starting)) {
@@ -92,7 +92,7 @@ namespace net {
 		}
 
 		// 重连机制
-		inline typename std::enable_if_t<is_tcp_socket_v<SOCKETTYPE>, bool>
+		inline bool
 		reconn() {
 			if (!is_stopped()) {
 				return false;
@@ -118,8 +118,8 @@ namespace net {
 		inline auto self_shared_ptr() { return this->shared_from_this(); }
 		inline asio::streambuf& buffer() { return buffer_; }
 		inline NIO& cio() { return cio_; }
-		inline void handle_recv(session_ptr_type dptr, std::string&& s) {
-			cbfunc_->call(Event::recv, std::move(dptr), std::move(s));
+		inline void handle_recv(error_code ec, std::string&& s) {
+			cbfunc_->call(Event::recv, this->self_shared_ptr(), std::move(s));
 		}
 		inline t_buffer_cmdqueue<>& rbuffer() { return rbuff_; }
 
@@ -129,8 +129,14 @@ namespace net {
 		inline bool is_stopped() const {
 			return (this->state_ == State::stopped && !this->socket_.lowest_layer().is_open());
 		}
-		inline const key_type hash_key() const {
-			return reinterpret_cast<key_type>(this);
+		inline const key_type hash_key() {
+			if constexpr (is_tcp_socket_v<SOCKETTYPE>) {
+				return reinterpret_cast<key_type>(this);
+			}
+			else if constexpr (is_udp_socket_v<SOCKETTYPE>) {
+				//return this->remote_endpoint_;
+				return this->stream().lowest_layer().local_endpoint();
+			}
 		}
 
 		template<class DataT>
@@ -150,7 +156,7 @@ namespace net {
 		}
 	protected:
 		// tcp connect
-		template<bool isAsync = true, bool isKeepAlive = false, typename = std::enable_if_t<is_tcp_socket_v<SOCKETTYPE>>>
+		template<bool isAsync = true, bool isKeepAlive = false>
 		bool connect(const std::string_view& host, const std::string_view& port) {
 			try {
 				this->host_ = host;
@@ -162,7 +168,7 @@ namespace net {
 				socket.open(this->endpoint().protocol());
 				socket.set_option(typename SOCKETTYPE::reuse_address(true));
 
-				if constexpr (isKeepAlive)
+				if constexpr (isKeepAlive && is_tcp_socket_v<SOCKETTYPE>)
 					this->keep_alive_options();
 				else
 					std::ignore = true;
@@ -256,7 +262,7 @@ namespace net {
 						//加入到sessionmgr
 						bool isadd = this->sessions_.emplace(dptr);
 						if (isadd)
-							this->do_recv();
+							this->do_recv<true>();
 						else
 							this->stop(asio::error::address_in_use);
 					}

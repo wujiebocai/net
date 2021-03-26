@@ -35,10 +35,15 @@ using CTcpsSessionPtr = TcpsCli::session_ptr_type;
 using STcpsSessionWeakPtr = TcpSvr::session_weakptr_type;
 using CTcpsSessionWeakPtr = TcpCli::session_weakptr_type;
 
-//下面得都有待实现
 //udp
-using UdpSvr = net::Server<asio::ip::udp::socket, net::binary_stream_flag>;
+using UdpSvr = net::Server<asio::ip::udp::socket&, net::binary_stream_flag>;
 using UdpCli = net::Client<asio::ip::udp::socket, net::binary_stream_flag>;
+using SUdpSessionPtr = UdpSvr::session_ptr_type;
+using CUdpSessionPtr = UdpCli::session_ptr_type;
+using SUdpSessionWeakPtr = UdpSvr::session_weakptr_type;
+using CUdpSessionWeakPtr = UdpCli::session_weakptr_type;
+
+//下面得都有待实现
 
 //kcp
 using KcpSvr = net::Server<asio::ip::udp::socket, net::kcp_stream_flag>;

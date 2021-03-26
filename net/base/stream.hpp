@@ -28,15 +28,23 @@ namespace net {
 			: socket_type(std::forward<Args>(args)...)
 		{
 		}
+		template<class ...Args>
+		explicit StreamType(asio::ip::udp::endpoint& remote_endpoint, Args&&... args)
+			: socket_type(std::forward<Args>(args)...)
+			, remote_endpoint_(remote_endpoint)
+		{
+		}
 
 		~StreamType() = default;
 
 		inline auto& stream() { return socket_type::stream(); }
+		inline auto& remote_endpoint() { return remote_endpoint_; }
 	protected:
 		inline void stream_start(std::shared_ptr<DRIVERTYPE> dptr) {
 		}
 
 		inline void stream_stop(std::shared_ptr<DRIVERTYPE> dptr) {
+			this->socket_.shutdown(asio::socket_base::shutdown_both, ec_ignore);
 			this->socket_.close();
 		}
 
@@ -44,6 +52,8 @@ namespace net {
 		inline void stream_post_handshake(std::shared_ptr<DRIVERTYPE> dptr, Fn&& fn) {
 			fn(ec_ignore);
 		}
+	protected:
+		asio::ip::udp::endpoint  remote_endpoint_;
 	};
 ///////////////////ssl stream///////////////////////////////////////////////////////////////////
 #if defined(NET_USE_SSL)

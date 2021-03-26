@@ -101,7 +101,7 @@ void tcp_ssl_test() {
 
 	auto svr = std::make_shared<TcpsSvr>(8);
 
-	svr->get_netstream().set_cert("test", cer, key, dh); // 使用字符串测试
+	svr->set_cert("test", cer, key, dh); // 使用字符串测试
 	//svr->get_netstream().set_cert_file("test", "server.crt", "server.key", "dh512.pem"); // 使用文件测试
 
 	net::Timer testtimer(svr->get_iopool().get(0));   //测试性能计时器
@@ -135,7 +135,7 @@ void tcp_ssl_test() {
 
 	cli->start();
 
-	cli->get_netstream().set_cert(cer); //使用字符串测试
+	cli->set_cert(cer); //使用字符串测试
 	//cli->get_netstream().set_cert_file("server.crt"); //使用文件测试
 
 	cli->bind(Event::handshake, [](CTcpsSessionPtr& ptr, error_code ec) {
@@ -158,6 +158,56 @@ void tcp_ssl_test() {
 		cli->add("127.0.0.1", "8888");
 	}
 #endif
+}
+
+void udp_test() {
+	auto svr = std::make_shared<UdpSvr>(1);
+
+	net::Timer testtimer(svr->get_iopool().get(0));   //测试性能计时器
+	std::atomic<std::size_t> count{ 1 };
+	testtimer.post_timer(10 * 1000, [&count](const error_code& ec) {
+		std::cout << count / 10 << std::endl;
+		count = 0;
+		return true;
+	});
+
+	svr->bind(Event::connect, [](SUdpSessionPtr& ptr, error_code ec) {
+		std::cout << "connect" << ec.message() << std::endl;
+	});
+	svr->bind(Event::disconnect, [](SUdpSessionPtr& ptr, error_code ec) {
+		std::cout << "disconnect" << std::endl;
+	});
+	svr->bind(Event::recv, [&](SUdpSessionPtr& ptr, std::string&& s) {
+		//std::cout << s << std::endl;
+		ptr->send(std::move(s));
+		++count;
+
+	});
+
+	svr->start("0.0.0.0", "8888");
+
+	/////////////////////////////////////////////////////////////////////////////////////////////
+	auto cli = std::make_shared<UdpCli>(4);
+
+	cli->start();
+
+	cli->bind(Event::connect, [](CUdpSessionPtr& ptr, error_code ec) {
+		if (!ec) {
+			ptr->send("a");
+		}
+		std::cout << "connect client" << ec.message() << std::endl;
+	});
+	cli->bind(Event::disconnect, [](CUdpSessionPtr& ptr, error_code ec) {
+		std::cout << "disconnect client:" << ec.message() << std::endl;
+		ptr->reconn();
+	});
+	cli->bind(Event::recv, [](CUdpSessionPtr& ptr, std::string&& s) {
+		ptr->send(std::move(s));
+	});
+
+	for (int i = 0; i < 12; ++i) {
+		cli->add("127.0.0.1", "8888");
+	}
 }
 
 ///////////////////协议代理测试///////////////////////////////////////////////////////
@@ -214,10 +264,12 @@ asio::io_context g_context_(1);
 asio::io_context::strand g_context_s_(g_context_);
 int main(int argc, char * argv[]){
 	////因为TcpSvr与TcpCli都使用了std::enable_shared_from_this，所以必须以智能指针方式创建，后面在优化.
-	tcp_test();
+	//tcp_test();
 
 	//tcp_ssl_test();
 
+	udp_test();
+	
 	//test_msg_proxy();
 
 	auto io_worker = asio::make_work_guard(g_context_);

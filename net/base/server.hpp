@@ -3,28 +3,30 @@
 #include <string_view>
 #include "base/iopool.hpp"
 #include "base/error.hpp"
-#include "base/listener.hpp"
+#include "base/acceptor.hpp"
 
 namespace net {
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>
 	class Server : public IoPoolImp
-				 , public Listener<Server<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>>
+				 , public NetStream<SOCKETTYPE, STREAMTYPE>
+				 , public Acceptor<Server<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE>
 				 , public std::enable_shared_from_this<Server<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE> > {
 	public:
 		using server_type = Server<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_type = Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
 		using session_weakptr_type = std::weak_ptr<session_type>;
-		using listener_type = Listener<server_type, session_type>;
+		using acceptor_type = Acceptor<server_type, session_type, SOCKETTYPE>;
 		using netstream_type = NetStream<SOCKETTYPE, STREAMTYPE>;
+		using sessionmgr_type = SessionMgr<session_type>;
 	public:
 		explicit Server(std::size_t concurrency = std::thread::hardware_concurrency() * 2, std::size_t max_buffer_size = (std::numeric_limits<std::size_t>::max)())
 			: IoPoolImp(concurrency)
-			, listener_type(iopool_.get(0))
+			, netstream_type(svr_place{})
+			, acceptor_type(iopool_.get(0))
 			, accept_io_(iopool_.get(0))
 			, sessions_(accept_io_)
 			, max_buffer_size_(max_buffer_size)
-			, streamcxt_(svr_place{})
 			
 		{
 			this->iopool_.start();
@@ -47,7 +49,7 @@ namespace net {
 
 				//cbfunc_->call(Event::init);
 
-				this->listener_start(host, service);
+				this->acceptor_start(host, service);
 
 				expected = State::starting;
 				if (!this->state_.compare_exchange_strong(expected, State::started)) {
@@ -90,7 +92,7 @@ namespace net {
 				State expected = State::stopping;
 				if (this->state_.compare_exchange_strong(expected, State::stopped)) {
 					//cbfunc_->call(Event::stop);
-					this->listener_stop();
+					this->acceptor_stop();
 				}
 				else
 					NET_ASSERT(false);
@@ -98,11 +100,11 @@ namespace net {
 		}
 
 		inline bool is_started() const {
-			return (this->state_ == State::started);
+			return (this->state_ == State::started && this->is_open());
 		}
 
 		inline bool is_stopped() const {
-			return (this->state_ == State::stopped);
+			return (this->state_ == State::stopped && !this->is_open());
 		}
 
 		//广播所有session
@@ -113,17 +115,25 @@ namespace net {
 		}
 
 		inline session_ptr_type make_session() {
-			auto& cio = this->iopool_.get();
-			if constexpr (is_ssl_streamtype_v<STREAMTYPE>) {
-				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio, this->max_buffer_size_
-					, cio, streamcxt_, asio::ssl::stream_base::server, cio.context());
+			if constexpr (is_udp_socket_v<SOCKETTYPE>) {
+				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio_, this->max_buffer_size_, this->remote_endpoint_, acceptor_);
 			}
-			if constexpr (is_binary_streamtype_v<STREAMTYPE>) {
-				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio, this->max_buffer_size_
-					, cio.context());
+			if constexpr (is_tcp_socket_v<SOCKETTYPE>) {
+				auto& cio = this->iopool_.get();
+				if constexpr (is_ssl_streamtype_v<STREAMTYPE>) {
+					return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio, this->max_buffer_size_
+						, cio, *this, asio::ssl::stream_base::server, cio.context());
+				}
+				if constexpr (is_binary_streamtype_v<STREAMTYPE>) {
+					return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio, this->max_buffer_size_
+						, cio.context());
+				}
 			}
-
 		}
+
+		/*inline session_ptr_type make_session(asio::ip::udp::endpoint& endpoint, SOCKETTYPE& sc) {
+			return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio_, endpoint, sc);
+		}*/
 
 		inline std::size_t session_count() { return this->sessions_.size(); }
 
@@ -150,20 +160,19 @@ namespace net {
 		}
 
 		auto& get_iopool() { return iopool_; }
-		auto& get_netstream() { return streamcxt_; }
+		auto& get_sessions() { return sessions_; }
 	protected:
 		//IoPool iopool_;
 		NIO & accept_io_;
 
-		SessionMgr<session_type> sessions_;
+		sessionmgr_type sessions_;
 
 		std::atomic<State> state_ = State::stopped;
 
-		std::size_t max_buffer_size_;
+		std::size_t max_buffer_size_ = 0;
+		std::size_t min_buffer_size_ = 0;
 
 		FuncProxyImpPtr cbfunc_;
-
-		netstream_type streamcxt_;
 	};
 }
 

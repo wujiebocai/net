@@ -3,6 +3,7 @@
 #include <type_traits>
 
 #include "tool/help_type.hpp"
+#include "tool/util.hpp"
 
 namespace net {
 	enum class State : std::int8_t { stopped, stopping, starting, started };
@@ -40,9 +41,9 @@ namespace net {
 	};
 
 	template<class SOCKETTYPE>
-	constexpr bool is_tcp_socket_v = std::is_same_v<typename SOCKETTYPE::protocol_type, asio::ip::tcp>;
+	constexpr bool is_tcp_socket_v = std::is_same_v<typename unqualified_t<SOCKETTYPE>::protocol_type, asio::ip::tcp>;
 	template<class SOCKETTYPE>
-	constexpr bool is_udp_socket_v = std::is_same_v<typename SOCKETTYPE::protocol_type, asio::ip::udp >;
+	constexpr bool is_udp_socket_v = std::is_same_v<typename unqualified_t<SOCKETTYPE>::protocol_type, asio::ip::udp >;
 
 	template<class PROTOCOLTYPE>
 	constexpr bool is_http_protocoltype_v = std::is_same_v<PROTOCOLTYPE, http_proto_flag>;

@@ -22,10 +22,12 @@ namespace net {
 		using session_type = Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
 		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE>;
-		using key_type = std::size_t;
+		using transferdata_type = TransferData<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, PROTOCOLTYPE>;
+		using sessionmgr_type = SessionMgr<session_type>;
+		using key_type = typename std::conditional<is_udp_socket_v<SOCKETTYPE>, asio::ip::udp::endpoint, std::size_t>::type;
 	public:
 		template<class ...Args>
-		explicit Session(SessionMgr<session_type> & sessions, FuncProxyImpPtr & cbfunc, NIO & io,
+		explicit Session(sessionmgr_type& sessions, FuncProxyImpPtr & cbfunc, NIO & io,
 						std::size_t max_buffer_size, Args&&... args)
 			: stream_type(std::forward<Args>(args)...)
 			, cio_(io)
@@ -33,6 +35,7 @@ namespace net {
 			, buffer_(max_buffer_size)
 			, sessions_(sessions)
 		{
+		
 		}
 
 		~Session() = default;
@@ -49,7 +52,7 @@ namespace net {
 						asio::detail::throw_error(asio::error::already_started);
 					//cbfunc_->call(Event::accept, dptr, ec);
 
-					if constexpr (iskeepalive)
+					if constexpr (iskeepalive && is_tcp_socket_v<SOCKETTYPE>)
 						this->keep_alive_options();
 					else
 						std::ignore = true;
@@ -117,15 +120,20 @@ namespace net {
 		}
 
 		inline const key_type hash_key() const {
-			return reinterpret_cast<key_type>(this);
+			if constexpr (is_tcp_socket_v<SOCKETTYPE>) {
+				return reinterpret_cast<key_type>(this);
+			}
+			else if constexpr (is_udp_socket_v<SOCKETTYPE>) {
+				return this->remote_endpoint_;
+			}
 		}
 
 		//imp(stream, self_shared_ptr, buffer, stop, is_started, handle_recv)
 		inline auto self_shared_ptr() { return this->shared_from_this(); }
 		inline asio::streambuf& buffer() { return buffer_; }
 		inline NIO& cio() { return cio_; }
-		inline void handle_recv(session_ptr_type dptr, std::string&& s) {
-			cbfunc_->call(Event::recv, std::move(dptr), std::move(s));
+		inline void handle_recv(error_code ec, std::string&& s) {
+			cbfunc_->call(Event::recv, this->self_shared_ptr(), std::move(s));
 		}
 		inline t_buffer_cmdqueue<>& rbuffer() { return rbuff_; }
 
@@ -152,7 +160,7 @@ namespace net {
 
 		std::atomic<State> state_ = State::stopped;
 
-		SessionMgr<session_type>  & sessions_;
+		sessionmgr_type& sessions_;
 
 		FuncProxyImpPtr & cbfunc_;
 
