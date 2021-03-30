@@ -29,6 +29,12 @@ namespace net {
 	};
 	struct client_place {
 	};
+	struct default_tab {
+	};
+	struct svr_tab {
+	};
+	struct cli_tab {
+	};
 	struct http_proto_flag {
 	};
 	struct websocket_proto_flag {
@@ -57,5 +63,9 @@ namespace net {
 	template<class STREAMTYPE>
 	constexpr bool is_kcp_streamtype_v = std::is_same_v<STREAMTYPE, kcp_stream_flag>;
 
+	template<class SVRTYPE>
+	constexpr bool is_svr_v = std::is_same_v<SVRTYPE, svr_tab>;
+	template<class SVRTYPE>
+	constexpr bool is_cli_v = std::is_same_v<SVRTYPE, cli_tab>;
 }
 

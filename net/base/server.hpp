@@ -116,7 +116,11 @@ namespace net {
 
 		inline session_ptr_type make_session() {
 			if constexpr (is_udp_socket_v<SOCKETTYPE>) {
-				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio_, this->max_buffer_size_, this->remote_endpoint_, acceptor_);
+				if constexpr (is_kcp_streamtype_v<STREAMTYPE>) {
+					return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio_, this->max_buffer_size_, this->remote_endpoint_, cio_, acceptor_);
+				}
+				else
+					return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio_, this->max_buffer_size_, this->remote_endpoint_, acceptor_);
 			}
 			if constexpr (is_tcp_socket_v<SOCKETTYPE>) {
 				auto& cio = this->iopool_.get();

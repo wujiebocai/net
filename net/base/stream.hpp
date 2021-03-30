@@ -5,6 +5,8 @@
 #include "base/iopool.hpp"
 #include "base/error.hpp"
 #include "base/socket.hpp"
+#include "base/timer.hpp"
+#include "base/detail/kcp_util.hpp"
 
 
 namespace net {
@@ -15,11 +17,11 @@ namespace net {
 		explicit NetStream(Args&&... args) {}
 	};
 
-	template<class DRIVERTYPE, class SOCKETTYPE, class STREAMTYPE>
+	template<class ... Args>
 	class StreamType {};
 ///////////////////////////binary stream//////////////////////////////////////////////////////////////////////////
-	template<class DRIVERTYPE, class SOCKETTYPE>
-	class StreamType<DRIVERTYPE, SOCKETTYPE, binary_stream_flag> : public Socket<SOCKETTYPE>{
+	template<class DRIVERTYPE, class SOCKETTYPE, class SVRORCLI>
+	class StreamType<DRIVERTYPE, SOCKETTYPE, binary_stream_flag, SVRORCLI> : public Socket<SOCKETTYPE>{
 	public:
 		using socket_type = Socket<SOCKETTYPE>;
 	public:
@@ -44,21 +46,26 @@ namespace net {
 		}
 
 		inline void stream_stop(std::shared_ptr<DRIVERTYPE> dptr) {
-			this->socket_.shutdown(asio::socket_base::shutdown_both, ec_ignore);
-			this->socket_.close();
+			socket_type::close();
+			//this->socket_.shutdown(asio::socket_base::shutdown_both, ec_ignore);
+			//this->socket_.close();
 		}
 
 		template<typename Fn>
 		inline void stream_post_handshake(std::shared_ptr<DRIVERTYPE> dptr, Fn&& fn) {
 			fn(ec_ignore);
+			if constexpr (is_udp_socket_v<SOCKETTYPE> && is_svr_v<SVRORCLI>) {
+				auto& packstr = dptr->get_first_pack();
+				dptr->handle_recv(ec_ignore, std::move(packstr));
+			}
 		}
 	protected:
 		asio::ip::udp::endpoint  remote_endpoint_;
 	};
 ///////////////////ssl stream///////////////////////////////////////////////////////////////////
 #if defined(NET_USE_SSL)
-	template<class DRIVERTYPE, class SOCKETTYPE>
-	class StreamType<DRIVERTYPE, SOCKETTYPE, ssl_stream_flag> : public Socket<SOCKETTYPE> {
+	template<class DRIVERTYPE, class SOCKETTYPE, class SVRORCLI>
+	class StreamType<DRIVERTYPE, SOCKETTYPE, ssl_stream_flag, SVRORCLI> : public Socket<SOCKETTYPE> {
 	public:
 		using socket_type = Socket<SOCKETTYPE>;
 		using stream_type = asio::ssl::stream<SOCKETTYPE&>;
@@ -102,6 +109,7 @@ namespace net {
 				asio::bind_executor(this->ssl_io_.strand(),
 					[this, dptr = std::move(dptr), fn = std::move(fn)](const error_code& ec)
 			{
+				this->derive_.cbfunc()->call(Event::handshake, dptr, ec);
 				this->handle_handshake(ec, std::move(dptr), fn);
 			}));
 		}
@@ -176,35 +184,308 @@ namespace net {
 	};
 #endif
 /////////////////kcp stream (具体逻辑有待实现)//////////////////////////////////////////////////////////////////////////////////////////////
-	template<class DRIVERTYPE, class SOCKETTYPE>
-	class StreamType<DRIVERTYPE, SOCKETTYPE, kcp_stream_flag> : public Socket<SOCKETTYPE> {
+	template<class DRIVERTYPE, class SOCKETTYPE, class SVRORCLI>
+	class StreamType<DRIVERTYPE, SOCKETTYPE, kcp_stream_flag, SVRORCLI> : public Socket<SOCKETTYPE> {
 	public:
 		using socket_type = Socket<SOCKETTYPE>;
+		using stream_type = StreamType<DRIVERTYPE, SOCKETTYPE, kcp_stream_flag, SVRORCLI>;
 	public:
 		template<class ...Args>
-		explicit StreamType(Args&&... args)
+		explicit StreamType(NIO& io, Args&&... args)
 			: socket_type(std::forward<Args>(args)...)
+			, derive_(static_cast<DRIVERTYPE&>(*this))
+			, kcp_io_(io)
+			, kcp_timer_(io)
+			, kcp_timer1_(io.context())
+		{
+		}
+		template<class ...Args>
+		explicit StreamType(asio::ip::udp::endpoint& remote_endpoint, NIO& io, Args&&... args)
+			: socket_type(std::forward<Args>(args)...)
+			, derive_(static_cast<DRIVERTYPE&>(*this))
+			, kcp_io_(io)
+			, kcp_timer_(io)
+			, kcp_timer1_(io.context())
+			, remote_endpoint_(remote_endpoint)
 		{
 		}
 
-		~StreamType() = default;
+		~StreamType() {
+			if (this->kcp_) {
+				kcp::ikcp_release(this->kcp_);
+				this->kcp_ = nullptr;
+			}
+		}
+
+		inline auto& stream() { return socket_type::stream(); }
+		inline auto& remote_endpoint() { return remote_endpoint_; }
+		inline kcp::ikcpcb* kcp() {
+			return this->kcp_;
+		}
+		inline void set_send_fin(bool flag) { send_fin_ = flag; }
+		inline bool get_send_fin() { return send_fin_; }
+		//inline std::uint32_t kcp_seq() { return seq_; }
 	protected:
-		inline void stream_start(std::shared_ptr<DRIVERTYPE> dptr) {
+		/**
+		 * @des : just used for kcp mode
+		 * default mode : ikcp_nodelay(kcp, 0, 10, 0, 0);
+		 * generic mode : ikcp_nodelay(kcp, 0, 10, 0, 1);
+		 * fast    mode : ikcp_nodelay(kcp, 1, 10, 2, 1);
+		 */
+		inline void stream_start(std::shared_ptr<DRIVERTYPE> dptr, std::uint32_t conv) {
+			if (this->kcp_) {
+				NET_ASSERT(false);
+				return;
+			}
+
+			this->kcp_ = kcp::ikcp_create(conv, (void*)this);
+			this->kcp_->output = &stream_type::kcp_output;
+
+			kcp::ikcp_nodelay(this->kcp_, 1, 10, 2, 1);
+			kcp::ikcp_wndsize(this->kcp_, 128, 512);
+
+			this->post_kcp_timer(std::move(dptr));
 		}
 
 		inline void stream_stop(std::shared_ptr<DRIVERTYPE> dptr) {
-			this->socket_.close();
+			std::ignore = dptr;
+
+			error_code ec;
+			// if is kcp mode, send FIN handshake before close
+			if (this->send_fin_)
+				this->derive_.kcp_send_hdr(kcp::make_kcphdr_fin(0), ec);
+
+			this->kcp_timer_.stop();
+			//this->kcp_timer_.cancel();
+
+			socket_type::close();
+		}
+
+		inline void post_kcp_timer(std::shared_ptr<DRIVERTYPE> dptr) {
+			std::uint32_t clock1 = static_cast<std::uint32_t>(std::chrono::duration_cast<
+				std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+			std::uint32_t clock2 = kcp::ikcp_check(this->kcp_, clock1);
+
+			/*kcp_timer_.post_timer<false>((clock2 - clock1), [this, sptr = std::move(dptr)](const error_code& ec) mutable {
+				this->handle_kcp_timer(ec, std::move(sptr));
+			});*/
+
+			this->kcp_timer1_.expires_after(std::chrono::milliseconds(clock2 - clock1));
+			this->kcp_timer1_.async_wait(asio::bind_executor(this->kcp_io_.strand(),
+				[this, sptr = std::move(dptr)](const error_code& ec) {
+				this->handle_kcp_timer(ec, std::move(sptr));
+			}));
+		}
+
+		inline void handle_kcp_timer(const error_code& ec, std::shared_ptr<DRIVERTYPE> dptr) {
+			if (ec == asio::error::operation_aborted) return;
+
+			std::uint32_t clock = static_cast<std::uint32_t>(std::chrono::duration_cast<
+				std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+			kcp::ikcp_update(this->kcp_, clock);
+			if (derive_.is_started())
+				//this->kcp_timer_.reset_active_time();
+				this->post_kcp_timer(std::move(dptr));
 		}
 
 		template<typename Fn>
-		inline void stream_post_handshake(std::shared_ptr<DRIVERTYPE> dptr, Fn&& fn) {
-			fn(ec_ignore);
+		inline void stream_post_handshake(std::shared_ptr<DRIVERTYPE> dptr, Fn && fn) {
+			try {
+				error_code ec;
+				if constexpr (is_svr_v<SVRORCLI>) {
+					// step 3 : server recvd syn from client (the first_pack_ is the syn)
+					// Check whether the first_pack_ packet is SYN handshake
+					if (!kcp::is_kcphdr_syn(dptr->get_first_pack())) {
+						//set_last_error(asio::error::no_protocol_option);
+						//this->derive_.cbfunc().cbfunc_->call(Event::handshake, dptr, asio::error::no_protocol_option);
+						//this->derive_.stop(asio::error::no_protocol_option);
+						this->handle_handshake(asio::error::no_protocol_option, std::move(dptr));
+						return;
+					}
+				//	this->kcp_ = std::make_unique<kcp_stream_cp<derived_t, true>>(this->derived(), this->io_);
+					//this->kcp_->_post_handshake(std::move(this_ptr), std::move(condition));
+
+					// step 4 : server send synack to client
+					kcp::kcphdr* hdr = (kcp::kcphdr*)(dptr->get_first_pack().data());
+					const auto& key = dptr->hash_key();
+					std::uint32_t conv = std::fnv1a_hash<std::uint32_t>(
+						(const unsigned char* const)&key, std::uint32_t(sizeof(key)));
+					this->seq_ = conv;
+					kcp::kcphdr synack = kcp::make_kcphdr_synack(this->seq_, hdr->th_seq);
+					this->derive_.kcp_send_hdr(synack, ec);
+					asio::detail::throw_error(ec);
+
+					this->stream_start(dptr, this->seq_);
+					fn(ec_ignore);
+					this->handle_handshake(ec, std::move(dptr));
+				}
+				else {
+					// step 1 : client send syn to server
+					this->seq_ = static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+						std::chrono::system_clock::now().time_since_epoch()).count());
+					kcp::kcphdr syn = kcp::make_kcphdr_syn(this->seq_);
+					this->derive_.kcp_send_hdr(syn, ec);
+					asio::detail::throw_error(ec);
+
+					kcp_timer_.post_timer(500, [this, syn](const error_code& ec) mutable {
+						if (ec == asio::error::operation_aborted)
+							return false;
+						this->derive_.kcp_send_hdr(syn, ec);
+						if (ec) {
+							set_last_error(ec);
+							derive_.stop(ec);
+							return false;
+						}
+						return true;
+					});
+
+					// step 2 : client wait for recv synack util connect timeout or recvd some data
+					derive_.stream().async_receive(asio::mutable_buffer(this->derive_.ubuffer().wr_buf(), this->derive_.ubuffer().wr_size()),
+						asio::bind_executor(kcp_io_.strand(), [this, this_ptr = std::move(dptr), fn = std::move(fn)]
+						(const error_code& ec, std::size_t bytes_recvd) mutable {
+						try {
+							kcp_timer_.stop();
+						}
+						catch (system_error&) {}
+						catch (std::exception&) {}
+
+						if (ec) {
+							this->handle_handshake(ec, std::move(this_ptr));
+							return;
+						}
+
+						this->derive_.ubuffer().wr_flip(bytes_recvd);
+
+						std::string s(static_cast<std::string::const_pointer>
+							(this->derive_.ubuffer().rd_buf()), bytes_recvd);
+
+						// Check whether the data is the correct handshake information
+						if (kcp::is_kcphdr_synack(s, this->seq_)) {
+							std::uint32_t conv = ((kcp::kcphdr*)(s.data()))->th_seq;
+							this->stream_start(this_ptr, conv);
+							fn(ec_ignore);
+							this->handle_handshake(ec, std::move(this_ptr));
+						}
+						else {
+							this->handle_handshake(asio::error::no_protocol_option, std::move(this_ptr));
+						}
+
+						this->derive_.ubuffer().rd_flip(bytes_recvd);
+						//derive.buffer().consume(bytes_recvd);
+					}));
+				}
+			}
+			catch (system_error& e) {
+				set_last_error(e);
+				derive_.stop(e.code());
+			}
 		}
+
+		inline void handle_handshake(const error_code& ec, std::shared_ptr<DRIVERTYPE> dptr) {
+			set_last_error(ec);
+			try {
+				if constexpr (is_svr_v<SVRORCLI>) {
+					this->derive_.cbfunc()->call(Event::handshake, dptr, ec);
+
+					asio::detail::throw_error(ec);
+
+					//derive._done_connect(ec, std::move(this_ptr), std::move(condition));
+					this->derive_.handle_recv(ec, std::move(dptr->get_first_pack()));
+				}
+				else {
+					this->derive_.cbfunc()->call(Event::handshake, dptr, ec);
+
+					//derive._done_connect(ec, std::move(this_ptr), std::move(condition));
+				}
+			}
+			catch (system_error& e) {
+				set_last_error(e);
+				derive_.stop(e.code());
+			}
+		}
+
+		static int kcp_output(const char* buf, int len, kcp::ikcpcb* kcp, void* user) {
+			std::ignore = kcp;
+			stream_type* zhis = ((stream_type*)user);
+
+			DRIVERTYPE& derive = zhis->derive_;
+
+			error_code ec;
+			if constexpr (is_svr_v<SVRORCLI>)
+				derive.stream().send_to(asio::buffer(buf, len),
+					derive.remote_endpoint_, 0, ec);
+			else
+				derive.stream().send(asio::buffer(buf, len), 0, ec);
+
+			return 0;
+		}
+
+		inline void kcp_handle_recv(const error_code& ec, const std::string& s) {
+			if (!this->derive_.is_started())
+				return;
+			auto pkcp = this->derive_.kcp();
+			if (!pkcp) {
+				return;
+			}
+			if constexpr (is_svr_v<SVRORCLI>) {
+				if (s.size() == sizeof(kcp::kcphdr)) {
+					if (kcp::is_kcphdr_fin(s)) {
+						this->send_fin_ = false;
+						this->derive_.stop(asio::error::eof);
+					}
+					// Check whether the packet is SYN handshake
+					// It is possible that the client did not receive the synack package, then the client
+					// will resend the syn package, so we just need to reply to the syncack package directly.
+					else if (kcp::is_kcphdr_syn(s)) {
+						NET_ASSERT(pkcp);
+						// step 4 : server send synack to client
+						kcp::kcphdr* hdr = (kcp::kcphdr*)(s.data());
+						kcp::kcphdr synack = kcp::make_kcphdr_synack(this->seq_, hdr->th_seq);
+						error_code ed;
+						this->derive_.kcp_send_hdr(synack, ed);
+						if (ed)
+							this->derive_.stop(ed);
+					}
+				}
+				else
+					this->derive_.kcp_do_recv_t(s);
+			}
+			else {
+				if (s.size() == sizeof(kcp::kcphdr)) {
+					if (kcp::is_kcphdr_fin(s)) {
+						this->send_fin_ = false;
+						this->derive_.stop(asio::error::eof);
+					}
+					else if (!kcp::is_kcphdr_synack(s, this->seq_)) {
+						NET_ASSERT(false);
+					}
+				}
+				else
+					this->derive_.kcp_do_recv_t(s);
+			}
+
+		}
+	protected:
+		asio::ip::udp::endpoint  remote_endpoint_;
+
+		DRIVERTYPE& derive_;
+
+		NIO& kcp_io_;
+
+		kcp::ikcpcb* kcp_ = nullptr;
+
+		std::uint32_t seq_ = 0;
+
+		bool send_fin_ = true;
+		//bool is_svr_ = true;
+
+		asio::steady_timer kcp_timer1_;
+		net::Timer kcp_timer_;
 	};
-	template<class SOCKETTYPE>
+	/*template<class SOCKETTYPE>
 	class NetStream<SOCKETTYPE, kcp_stream_flag> {
 	public:
 		NetStream() = default;
 		~NetStream() = default;
-	};
+	};*/
 }

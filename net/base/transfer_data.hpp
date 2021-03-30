@@ -5,7 +5,7 @@
 #include "tool/bytebuffer.hpp"
 
 namespace net {
-	template<class DRIVERTYPE, class SOCKETTYPE, class PROTOCOLTYPE = void>
+	template<class DRIVERTYPE, class SOCKETTYPE, class STREAMTYPE, class PROTOCOLTYPE, class SVRORCLI = svr_tab>
 	class TransferData {
 	public:
 		TransferData() : derive_(static_cast<DRIVERTYPE&>(*this)) {}
@@ -13,21 +13,22 @@ namespace net {
 		~TransferData() = default;
 
 		inline bool send(const std::string&& data) {
-			if constexpr (is_tcp_socket_v<SOCKETTYPE>) {
+			if constexpr (is_tcp_socket_v<SOCKETTYPE>) { // tcp
 				return this->send_t(std::move(data));
 			}
-			else if constexpr (is_udp_socket_v<SOCKETTYPE>) {
-				if (derive_.remote_endpoint().port() <= 0) {
+			else if constexpr (is_udp_socket_v<SOCKETTYPE>) { //udp
+				if constexpr (is_cli_v<SVRORCLI>) {
 					return this->send_t(std::move(data));
 				}
-				return this->send_t(derive_.remote_endpoint(), std::move(data));
+				else {
+					return this->send_t(derive_.remote_endpoint(), std::move(data));
+				}
 			}
 			return false;
 		}
 
-		template<bool isdo = false>
 		inline void do_recv() {
-			this->do_recv_t<SOCKETTYPE, isdo>();
+			this->do_recv_t<SOCKETTYPE>();
 		}
 
 	protected:
@@ -86,13 +87,13 @@ namespace net {
 
 	protected:
 		/*
-		desc: recv data
+		desc: tcp recv data
 		condition:
 			transfer_all:直到buff满才返回.
 			transfer_at_least:buff满或者至少读取参数设定字节数返回.
 			transfer_exactly:buff满或者正好读取参数设定字节数返回.
 		*/
-		template<class TSOCKETTYPE, bool isdo = false, std::enable_if_t<is_tcp_socket_v<TSOCKETTYPE>, bool> = true>
+		template<class TSOCKETTYPE, std::enable_if_t<is_tcp_socket_v<TSOCKETTYPE>, bool> = true>
 		inline void do_recv_t() {
 			if (!this->derive_.is_started())
 				return;
@@ -108,7 +109,7 @@ namespace net {
 
 						this->derive_.buffer().consume(bytes_recvd);
 
-						this->do_recv_t<TSOCKETTYPE, isdo>();
+						this->do_recv_t<TSOCKETTYPE>();
 					}
 					else {
 						this->derive_.stop(ec);
@@ -120,9 +121,12 @@ namespace net {
 				this->derive_.stop(e.code());
 			}
 		}
-		template<class USOCKETTYPE, bool isdo = false, std::enable_if_t<is_udp_socket_v<USOCKETTYPE>, bool> = true>
+		/*
+		desc: udp recv data
+		*/
+		template<class USOCKETTYPE, std::enable_if_t<is_udp_socket_v<USOCKETTYPE>, bool> = true>
 		inline void do_recv_t() {
-			if constexpr (!isdo) {
+			if constexpr (is_svr_v<SVRORCLI>) {
 				return;
 			}
 			if (!this->derive_.is_started())
@@ -133,18 +137,17 @@ namespace net {
 					asio::bind_executor(derive_.cio().strand(), 
 						[this, selfptr = this->derive_.self_shared_ptr()](const error_code& ec, std::size_t bytes_recvd)
 				{
-					//this->derived()._handle_recv(ec, bytes_recvd, std::move(self_ptr), condition);
 					if (ec == asio::error::operation_aborted) {
 						this->derive_.stop(ec);
 						return;
 					}
-					this->ubuffer_.rd_flip(bytes_recvd);
+					this->ubuffer_.wr_flip(bytes_recvd);
 					this->derive_.handle_recv(ec, std::string(reinterpret_cast<
 						std::string::const_pointer>(this->ubuffer_.rd_buf()), bytes_recvd));
 
 					this->ubuffer_.reset();
 
-					this->do_recv_t<USOCKETTYPE, isdo>();
+					this->do_recv_t<USOCKETTYPE>();
 				}));
 			}
 			catch (system_error& e) {
@@ -189,6 +192,9 @@ namespace net {
 
 		template<class USOCKETTYPE, bool IsAsync = true, class Data, class Callback, std::enable_if_t<is_udp_socket_v<USOCKETTYPE>, bool> = true>
 		inline bool do_send(Data&& data, Callback&& callback) {
+			if constexpr (is_kcp_streamtype_v<STREAMTYPE>) {
+				return kcp_do_send(data, callback);
+			}
 			if constexpr (IsAsync) {
 				this->derive_.stream().async_send(asio::buffer(std::forward<Data>(data)), asio::bind_executor(this->derive_.cio().strand(),
 					[this, p = this->derive_.self_shared_ptr(), callback = std::forward<Callback>(callback)]
@@ -211,6 +217,9 @@ namespace net {
 		}
 		template<bool IsAsync = true, class Endpoint, class Data, class Callback, typename = std::enable_if_t<std::is_same_v<unqualified_t<Endpoint>, asio::ip::udp::endpoint>>>
 		inline bool do_send(Endpoint& endpoint, Data& data, Callback&& callback) {
+			if constexpr (is_kcp_streamtype_v<STREAMTYPE>) {
+				return kcp_do_send(data, callback);
+			}
 			if constexpr (IsAsync) {
 				this->derive_.stream().async_send_to(asio::buffer(data), endpoint, asio::bind_executor(this->derive_.cio().strand(),
 					[this, p = this->derive_.self_shared_ptr(), callback = std::forward<Callback>(callback)]
@@ -263,6 +272,114 @@ namespace net {
 			}));
 			return true;
 		}
+////////////////////////////////////KCP////////////////////////////////////////////////////////////////////////
+	public:
+		inline auto& ubuffer() { return ubuffer_; }
+		template<bool IsAsync = true, class Data, class Callback>
+		inline bool kcp_do_send(Data& data, Callback&& callback) {
+			auto pkcp = this->derive_.kcp();
+			if (!pkcp) {
+				return false;
+			}
+			auto buffer = asio::buffer(data);
+
+			int ret = kcp::ikcp_send(pkcp, (const char*)buffer.data(), (int)buffer.size());
+			set_last_error(ret);
+			if (ret == 0)
+				kcp::ikcp_flush(pkcp);
+			callback(get_last_error(), ret < 0 ? 0 : buffer.size());
+
+			if constexpr (IsAsync) {
+				this->send_queue_.pop();
+			}
+
+			return (ret == 0);
+		}
+		inline std::size_t kcp_send_hdr(kcp::kcphdr hdr, error_code ec) {
+			std::size_t sent_bytes = 0;
+			if constexpr (is_svr_v<SVRORCLI>)
+				sent_bytes = this->derive_.stream().send_to(
+					asio::buffer((const void*)&hdr, sizeof(kcp::kcphdr)),
+					this->derive_.remote_endpoint(), 0, ec);
+			else
+				sent_bytes = this->derive_.stream().send(
+					asio::buffer((const void*)&hdr, sizeof(kcp::kcphdr)), 0, ec);
+			return sent_bytes;
+		}
+		inline void kcp_do_recv_t(const std::string& s) {
+			auto pkcp = this->derive_.kcp();
+			if (!pkcp) {
+				return;
+			}
+			int len = kcp::ikcp_input(pkcp, s.c_str(), (long)s.size());
+			ubuffer_.reset();
+			if (len != 0) {
+				set_last_error(asio::error::no_data);
+				this->derive_.stop(asio::error::no_data);
+				return;
+			}
+			for (;;) {
+				len = kcp::ikcp_recv(pkcp, (char*)ubuffer_.wr_buf(), ubuffer_.wr_size());
+				if (len >= 0) {
+					ubuffer_.wr_flip(len);
+					/*this->derive_.handle_recv(ec_ignore, std::string(reinterpret_cast<
+						std::string::const_pointer>(ubuffer_.rd_buf()), len));*/
+					this->derive_.cbfunc()->call(Event::recv, this->derive_.self_shared_ptr(), std::string(reinterpret_cast<
+						std::string::const_pointer>(ubuffer_.rd_buf()), len));
+					ubuffer_.rd_flip(len);
+				}
+				else if (len == -3) {
+					ubuffer_.wr_reserve(init_buffer_size_);
+				}
+				else break;
+			}
+			kcp::ikcp_flush(pkcp);
+		}
+		/*inline void kcp_handle_recv(const error_code& ec, const std::string& s) {
+			if (!this->derive_.is_started())
+				return;
+			auto pkcp = this->derive_.kcp();
+			if (!pkcp) {
+				return;
+			}
+			if constexpr (is_svr_v<SVRORCLI>) {
+				if (s.size() == sizeof(kcp::kcphdr)) {
+					if (kcp::is_kcphdr_fin(s)) {
+						this->derive_.set_send_fin(false);
+						this->derive_.stop(asio::error::eof);
+					}
+					// Check whether the packet is SYN handshake
+					// It is possible that the client did not receive the synack package, then the client
+					// will resend the syn package, so we just need to reply to the syncack package directly.
+					else if (kcp::is_kcphdr_syn(s)) {
+						NET_ASSERT(pkcp);
+						// step 4 : server send synack to client
+						kcp::kcphdr* hdr = (kcp::kcphdr*)(s.data());
+						kcp::kcphdr synack = kcp::make_kcphdr_synack(this->derive_.kcp_seq(), hdr->th_seq);
+						error_code ed;
+						this->kcp_send_hdr(synack, ed);
+						if (ed)
+							this->derive_.stop(ed);
+					}
+				}
+				else
+					this->kcp_do_recv_t(s);
+			}
+			else {
+				if (s.size() == sizeof(kcp::kcphdr)) {
+					if (kcp::is_kcphdr_fin(s)) {
+						this->derive_.set_send_fin(false);
+						this->derive_.stop(asio::error::eof);
+					}
+					else if (kcp::is_kcphdr_synack(s, this->derive_.kcp_seq())) {
+						NET_ASSERT(false);
+					}
+				}
+				else
+					this->kcp_do_recv_t(s);
+			}
+			
+		}*/
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//线程安全，保证执行得时序性.
 		template<bool IsAsync = true, class Callback>

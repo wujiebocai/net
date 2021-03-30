@@ -4,52 +4,97 @@
 #include "net.hpp"
 using namespace net;
 
+template<class SVRTYPE>
+class SvrProxy : public SVRTYPE {
+public:
+	SvrProxy(std::size_t concurrency = std::thread::hardware_concurrency() * 2, std::size_t max_buffer_size = (std::numeric_limits<std::size_t>::max)()) 
+		: SVRTYPE(concurrency, max_buffer_size) 
+		, testtimer_(this->get_iopool().get(0)){
+
+		this->bind(Event::connect, [](session_ptr_type& ptr, error_code ec) {
+			std::cout << "connect" << ec.message() << std::endl;
+		});
+		this->bind(Event::handshake, [](session_ptr_type& ptr, error_code ec) {
+			std::cout << "handshake" << ec.message() << std::endl;
+		});
+		this->bind(Event::disconnect, [](session_ptr_type& ptr, error_code ec) {
+			std::cout << "disconnect" << std::endl;
+		});
+		this->bind(Event::recv, [&](session_ptr_type& ptr, std::string&& s) {
+			//std::cout << s << std::endl;
+			ptr->send(std::move(s));
+			++count_;
+		});
+
+		testtimer_.post_timer(10 * 1000, [this](const error_code& ec) {
+			std::cout << count_ / 10 << std::endl;
+			count_ = 0;
+			return true;
+		});
+	}
+
+private:
+	net::Timer testtimer_;
+	std::atomic<std::size_t> count_{ 1 };
+};
+
+template<class CLITYPE>
+class CliProxy : public CLITYPE {
+public:
+	CliProxy(std::size_t concurrency = std::thread::hardware_concurrency() * 2, std::size_t max_buffer_size = (std::numeric_limits<std::size_t>::max)())
+		: CLITYPE(concurrency, max_buffer_size) {
+
+		this->bind(Event::connect, [](session_ptr_type& ptr, error_code ec) {
+			if (!ec) {
+				ptr->send("a");
+			}
+			std::cout << "connect client" << ec.message() << std::endl;
+		});
+		this->bind(Event::handshake, [](session_ptr_type& ptr, error_code ec) {
+			std::cout << "handshake client" << ec.message() << std::endl;
+		});
+		this->bind(Event::disconnect, [](session_ptr_type& ptr, error_code ec) {
+			std::cout << "disconnect client" << std::endl;
+		});
+		this->bind(Event::recv, [](session_ptr_type& ptr, std::string&& s) {
+			ptr->send(std::move(s));
+		});
+	}
+};
+
 void tcp_test() {
-	auto svr = std::make_shared<TcpSvr>(8);
-
-	net::Timer testtimer(svr->get_iopool().get(0));   //测试性能计时器
-	std::atomic<std::size_t> count{ 1 };
-	testtimer.post_timer(10 * 1000, [&count](const error_code& ec) {
-		std::cout << count / 10 << std::endl;
-		count = 0;
-		return true;
-	});
-
-	svr->bind(Event::connect, [](STcpSessionPtr& ptr, error_code ec) {
-		std::cout << "connect" << ec.message() << std::endl;
-	});
-	svr->bind(Event::disconnect, [](STcpSessionPtr& ptr, error_code ec) {
-		std::cout << "disconnect" << std::endl;
-	});
-	svr->bind(Event::recv, [&](STcpSessionPtr& ptr, std::string&& s) {
-		//std::cout << s << std::endl;
-		ptr->send(std::move(s));
-		++count;
-
-	});
-
-	svr->start("0.0.0.0", "8888");
-
-	/////////////////////////////////////////////////////////////////////////////////////////////
-	auto cli = std::make_shared<TcpCli>(4);
-
-	cli->start();
-
-	cli->bind(Event::connect, [](CTcpSessionPtr& ptr, error_code ec) {
-		if (!ec) {
-			ptr->send("a");
-		}
-		std::cout << "connect client" << ec.message() << std::endl;
-	});
-	cli->bind(Event::disconnect, [](CTcpSessionPtr& ptr, error_code ec) {
-		std::cout << "disconnect client" << std::endl;
-	});
-	cli->bind(Event::recv, [](CTcpSessionPtr& ptr, std::string&& s) {
-		ptr->send(std::move(s));
-	});
-
+	// svr
+	SvrProxy<TcpSvr> svr(8);
+	svr.start("0.0.0.0", "8888");
+	// client
+	CliProxy<TcpCli> cli(4);
+	cli.start();
 	for (int i = 0; i < 42; ++i) {
-		cli->add("127.0.0.1", "8888");
+		cli.add("127.0.0.1", "8888");
+	}
+}
+
+void udp_test() {
+	// svr
+	SvrProxy<UdpSvr> svr(8);
+	svr.start("0.0.0.0", "8888");
+	// client
+	CliProxy<UdpCli> cli(4);
+	cli.start();
+	for (int i = 0; i < 42; ++i) {
+		cli.add("127.0.0.1", "8888");
+	}
+}
+
+void kcp_test() {
+	// svr
+	SvrProxy<KcpSvr> svr(1);
+	svr.start("0.0.0.0", "8888");
+	// client
+	CliProxy<KcpCli> cli(4);
+	cli.start();
+	for (int i = 0; i < 20; ++i) {
+		cli.add("127.0.0.1", "8888");
 	}
 }
 
@@ -99,115 +144,21 @@ void tcp_ssl_test() {
 		"NgWnHCe/vsGJok2wHS4R/laH6MQTAgEC\r\n"\
 		"-----END DH PARAMETERS-----\r\n";
 
-	auto svr = std::make_shared<TcpsSvr>(8);
-
-	svr->set_cert("test", cer, key, dh); // 使用字符串测试
+	// svr
+	SvrProxy<TcpsSvr> svr(8);
+	svr.set_cert("test", cer, key, dh); // 使用字符串测试
 	//svr->get_netstream().set_cert_file("test", "server.crt", "server.key", "dh512.pem"); // 使用文件测试
+	svr.start("0.0.0.0", "8888");
 
-	net::Timer testtimer(svr->get_iopool().get(0));   //测试性能计时器
-	std::atomic<std::size_t> count{ 1 };
-	testtimer.post_timer(10 * 1000, [&count](const error_code& ec) {
-		std::cout << count / 10 << std::endl;
-		count = 0;
-		return true;
-	});
-
-	svr->bind(Event::handshake, [](STcpsSessionPtr& ptr, error_code ec) {
-		std::cout << "handshake" << ec.message() << std::endl;
-	});
-	svr->bind(Event::connect, [](STcpsSessionPtr& ptr, error_code ec) {
-		std::cout << "connect" << ec.message() << std::endl;
-	});
-	svr->bind(Event::disconnect, [](STcpsSessionPtr& ptr, error_code ec) {
-		std::cout << "disconnect" << std::endl;
-	});
-	svr->bind(Event::recv, [&](STcpsSessionPtr& ptr, std::string&& s) {
-		//std::cout << s << std::endl;
-		ptr->send(std::move(s));
-		++count;
-
-	});
-
-	svr->start("0.0.0.0", "8888");
-
-	/////////////////////////////////////////////////////////////////////////////////////////////
-	auto cli = std::make_shared<TcpsCli>(4);
-
-	cli->start();
-
-	cli->set_cert(cer); //使用字符串测试
+	// client
+	CliProxy<TcpsCli> cli(4);
+	cli.start();
+	cli.set_cert(cer); //使用字符串测试
 	//cli->get_netstream().set_cert_file("server.crt"); //使用文件测试
-
-	cli->bind(Event::handshake, [](CTcpsSessionPtr& ptr, error_code ec) {
-		std::cout << "handshake client" << ec.message() << std::endl;
-	});
-	cli->bind(Event::connect, [](CTcpsSessionPtr& ptr, error_code ec) {
-		if (!ec) {
-			ptr->send("a");
-		}
-		std::cout << "connect client" << ec.message() << std::endl;
-	});
-	cli->bind(Event::disconnect, [](CTcpsSessionPtr& ptr, error_code ec) {
-		std::cout << "disconnect client" << std::endl;
-	});
-	cli->bind(Event::recv, [](CTcpsSessionPtr& ptr, std::string&& s) {
-		ptr->send(std::move(s));
-	});
-
 	for (int i = 0; i < 42; ++i) {
-		cli->add("127.0.0.1", "8888");
+		cli.add("127.0.0.1", "8888");
 	}
 #endif
-}
-
-void udp_test() {
-	auto svr = std::make_shared<UdpSvr>(1);
-
-	net::Timer testtimer(svr->get_iopool().get(0));   //测试性能计时器
-	std::atomic<std::size_t> count{ 1 };
-	testtimer.post_timer(10 * 1000, [&count](const error_code& ec) {
-		std::cout << count / 10 << std::endl;
-		count = 0;
-		return true;
-	});
-
-	svr->bind(Event::connect, [](SUdpSessionPtr& ptr, error_code ec) {
-		std::cout << "connect" << ec.message() << std::endl;
-	});
-	svr->bind(Event::disconnect, [](SUdpSessionPtr& ptr, error_code ec) {
-		std::cout << "disconnect" << std::endl;
-	});
-	svr->bind(Event::recv, [&](SUdpSessionPtr& ptr, std::string&& s) {
-		//std::cout << s << std::endl;
-		ptr->send(std::move(s));
-		++count;
-
-	});
-
-	svr->start("0.0.0.0", "8888");
-
-	/////////////////////////////////////////////////////////////////////////////////////////////
-	auto cli = std::make_shared<UdpCli>(4);
-
-	cli->start();
-
-	cli->bind(Event::connect, [](CUdpSessionPtr& ptr, error_code ec) {
-		if (!ec) {
-			ptr->send("a");
-		}
-		std::cout << "connect client" << ec.message() << std::endl;
-	});
-	cli->bind(Event::disconnect, [](CUdpSessionPtr& ptr, error_code ec) {
-		std::cout << "disconnect client:" << ec.message() << std::endl;
-		ptr->reconn();
-	});
-	cli->bind(Event::recv, [](CUdpSessionPtr& ptr, std::string&& s) {
-		ptr->send(std::move(s));
-	});
-
-	for (int i = 0; i < 12; ++i) {
-		cli->add("127.0.0.1", "8888");
-	}
 }
 
 ///////////////////协议代理测试///////////////////////////////////////////////////////
@@ -268,7 +219,9 @@ int main(int argc, char * argv[]){
 
 	//tcp_ssl_test();
 
-	udp_test();
+	//udp_test();
+
+	kcp_test();
 	
 	//test_msg_proxy();
 

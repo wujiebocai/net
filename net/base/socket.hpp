@@ -35,7 +35,7 @@ namespace net {
 			catch (system_error & e) {
 				set_last_error(e);
 			}
-			return std::string();
+			return std::string(" ");
 		}
 
 		inline unsigned short local_port() {
@@ -55,7 +55,7 @@ namespace net {
 			catch (system_error & e) {
 				set_last_error(e);
 			}
-			return std::string();
+			return std::string(" ");
 		}
 
 		inline unsigned short remote_port() {

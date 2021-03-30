@@ -15,13 +15,13 @@
 
 namespace net {
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>
-	class CSession : public StreamType<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE>
-				   , public TransferData<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, PROTOCOLTYPE>
+	class CSession : public StreamType<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE, cli_tab>
+				   , public TransferData<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE, cli_tab>
 				   , public std::enable_shared_from_this<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>> {
 	public:
 		using session_type = CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
-		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE>;
+		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE, cli_tab>;
 		using resolver_type = typename asio::ip::basic_resolver<typename SOCKETTYPE::protocol_type>;
 		using endpoints_type = typename resolver_type::results_type;
 		using endpoint_type = typename SOCKETTYPE::lowest_layer_type::endpoint_type;
@@ -119,8 +119,12 @@ namespace net {
 		inline asio::streambuf& buffer() { return buffer_; }
 		inline NIO& cio() { return cio_; }
 		inline void handle_recv(error_code ec, std::string&& s) {
+			if constexpr (is_kcp_streamtype_v<STREAMTYPE>) {
+				return this->kcp_handle_recv(ec, s);
+			}
 			cbfunc_->call(Event::recv, this->self_shared_ptr(), std::move(s));
 		}
+		inline auto& cbfunc() { return cbfunc_; }
 		inline t_buffer_cmdqueue<>& rbuffer() { return rbuff_; }
 
 		inline bool is_started() const {
@@ -249,7 +253,7 @@ namespace net {
 				const auto& dptr = this->shared_from_this();
 				this->stream_post_handshake(dptr, [this, dptr = this->shared_from_this()](const error_code& ec) {
 					try {
-						cbfunc_->call(Event::handshake, dptr, ec);
+						//cbfunc_->call(Event::handshake, dptr, ec);
 
 						State expected = State::starting;
 						if (!ec && !this->state_.compare_exchange_strong(expected, State::started))
@@ -262,7 +266,7 @@ namespace net {
 						//加入到sessionmgr
 						bool isadd = this->sessions_.emplace(dptr);
 						if (isadd)
-							this->do_recv<true>();
+							this->do_recv();
 						else
 							this->stop(asio::error::address_in_use);
 					}

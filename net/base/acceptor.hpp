@@ -219,8 +219,9 @@ namespace net {
 				if (!session_ptr) {
 					//std::cout << "udp acceptor: " << remote_endpoint_.data() << ", aa:" << std::hash<asio::ip::udp::endpoint>()(remote_endpoint_) << std::endl;
 					std::shared_ptr<SESSIONTYPE> session_ptr = this->server_.make_session();
+					session_ptr->set_first_pack(std::move(sdata));
 					session_ptr->start(ec);
-					session_ptr->handle_recv(ec, std::move(sdata));
+					//session_ptr->handle_recv(ec, std::move(sdata));
 				}
 				else
 					session_ptr->handle_recv(ec, std::move(sdata));

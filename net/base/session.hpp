@@ -15,14 +15,14 @@
 
 namespace net {
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>
-	class Session : public StreamType<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE>
-				  , public TransferData<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, PROTOCOLTYPE>
+	class Session : public StreamType<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE, svr_tab>
+				  , public TransferData<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE, svr_tab>
 				  , public std::enable_shared_from_this<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>> {
 	public:
 		using session_type = Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
-		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE>;
-		using transferdata_type = TransferData<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, PROTOCOLTYPE>;
+		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE, svr_tab>;
+		//using transferdata_type = TransferData<session_type, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using sessionmgr_type = SessionMgr<session_type>;
 		using key_type = typename std::conditional<is_udp_socket_v<SOCKETTYPE>, asio::ip::udp::endpoint, std::size_t>::type;
 	public:
@@ -56,8 +56,6 @@ namespace net {
 						this->keep_alive_options();
 					else
 						std::ignore = true;
-
-					cbfunc_->call(Event::handshake, dptr, ec);
 
 					expected = State::starting;
 					if (!ec && !this->state_.compare_exchange_strong(expected, State::started))
@@ -133,9 +131,15 @@ namespace net {
 		inline asio::streambuf& buffer() { return buffer_; }
 		inline NIO& cio() { return cio_; }
 		inline void handle_recv(error_code ec, std::string&& s) {
+			if constexpr (is_kcp_streamtype_v<STREAMTYPE>) {
+				return this->kcp_handle_recv(ec, s);
+			}
 			cbfunc_->call(Event::recv, this->self_shared_ptr(), std::move(s));
 		}
+		inline void set_first_pack(std::string&& str) { first_pack_ = std::move(str); }
+		inline auto& get_first_pack() { return first_pack_; }
 		inline t_buffer_cmdqueue<>& rbuffer() { return rbuff_; }
+		inline auto& cbfunc() { return cbfunc_; }
 
 
 		template<class DataT>
@@ -167,5 +171,7 @@ namespace net {
 		t_buffer_cmdqueue<> rbuff_;
 
 		std::any user_data_;
+
+		std::string first_pack_;
 	};
 }
