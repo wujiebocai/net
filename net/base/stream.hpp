@@ -196,7 +196,6 @@ namespace net {
 			, derive_(static_cast<DRIVERTYPE&>(*this))
 			, kcp_io_(io)
 			, kcp_timer_(io)
-			, kcp_timer1_(io.context())
 		{
 		}
 		template<class ...Args>
@@ -205,7 +204,6 @@ namespace net {
 			, derive_(static_cast<DRIVERTYPE&>(*this))
 			, kcp_io_(io)
 			, kcp_timer_(io)
-			, kcp_timer1_(io.context())
 			, remote_endpoint_(remote_endpoint)
 		{
 		}
@@ -224,7 +222,7 @@ namespace net {
 		}
 		inline void set_send_fin(bool flag) { send_fin_ = flag; }
 		inline bool get_send_fin() { return send_fin_; }
-		//inline std::uint32_t kcp_seq() { return seq_; }
+		inline std::uint32_t kcp_seq() { return seq_; }
 	protected:
 		/**
 		 * @des : just used for kcp mode
@@ -256,7 +254,7 @@ namespace net {
 				this->derive_.kcp_send_hdr(kcp::make_kcphdr_fin(0), ec);
 
 			this->kcp_timer_.stop();
-			//this->kcp_timer_.cancel();
+			//this->kcp_timer1_.cancel();
 
 			socket_type::close();
 		}
@@ -266,15 +264,15 @@ namespace net {
 				std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
 			std::uint32_t clock2 = kcp::ikcp_check(this->kcp_, clock1);
 
-			/*kcp_timer_.post_timer<false>((clock2 - clock1), [this, sptr = std::move(dptr)](const error_code& ec) mutable {
+			kcp_timer_.post_timer<false>((clock2 - clock1), [this, sptr = std::move(dptr)](const error_code& ec) mutable {
 				this->handle_kcp_timer(ec, std::move(sptr));
-			});*/
+			});
 
-			this->kcp_timer1_.expires_after(std::chrono::milliseconds(clock2 - clock1));
+			/*this->kcp_timer1_.expires_after(std::chrono::milliseconds(clock2 - clock1));
 			this->kcp_timer1_.async_wait(asio::bind_executor(this->kcp_io_.strand(),
 				[this, sptr = std::move(dptr)](const error_code& ec) {
 				this->handle_kcp_timer(ec, std::move(sptr));
-			}));
+			}));*/
 		}
 
 		inline void handle_kcp_timer(const error_code& ec, std::shared_ptr<DRIVERTYPE> dptr) {
@@ -284,8 +282,8 @@ namespace net {
 				std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
 			kcp::ikcp_update(this->kcp_, clock);
 			if (derive_.is_started())
-				//this->kcp_timer_.reset_active_time();
-				this->post_kcp_timer(std::move(dptr));
+				this->kcp_timer_.reset_active_time();
+				//this->post_kcp_timer(std::move(dptr));
 		}
 
 		template<typename Fn>
@@ -302,8 +300,6 @@ namespace net {
 						this->handle_handshake(asio::error::no_protocol_option, std::move(dptr));
 						return;
 					}
-				//	this->kcp_ = std::make_unique<kcp_stream_cp<derived_t, true>>(this->derived(), this->io_);
-					//this->kcp_->_post_handshake(std::move(this_ptr), std::move(condition));
 
 					// step 4 : server send synack to client
 					kcp::kcphdr* hdr = (kcp::kcphdr*)(dptr->get_first_pack().data());
@@ -420,7 +416,7 @@ namespace net {
 			return 0;
 		}
 
-		inline void kcp_handle_recv(const error_code& ec, const std::string& s) {
+		/*inline void kcp_handle_recv(const error_code& ec, const std::string& s) {
 			if (!this->derive_.is_started())
 				return;
 			auto pkcp = this->derive_.kcp();
@@ -464,7 +460,7 @@ namespace net {
 					this->derive_.kcp_do_recv_t(s);
 			}
 
-		}
+		}*/
 	protected:
 		asio::ip::udp::endpoint  remote_endpoint_;
 
@@ -477,9 +473,8 @@ namespace net {
 		std::uint32_t seq_ = 0;
 
 		bool send_fin_ = true;
-		//bool is_svr_ = true;
 
-		asio::steady_timer kcp_timer1_;
+		//asio::steady_timer kcp_timer1_;
 		net::Timer kcp_timer_;
 	};
 	/*template<class SOCKETTYPE>

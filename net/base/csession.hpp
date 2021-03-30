@@ -22,6 +22,7 @@ namespace net {
 		using session_type = CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
 		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE, cli_tab>;
+		using transferdata_type = TransferData<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE, cli_tab>;
 		using resolver_type = typename asio::ip::basic_resolver<typename SOCKETTYPE::protocol_type>;
 		using endpoints_type = typename resolver_type::results_type;
 		using endpoint_type = typename SOCKETTYPE::lowest_layer_type::endpoint_type;
@@ -32,9 +33,9 @@ namespace net {
 		explicit CSession(SessionMgr<session_type>& sessions, FuncProxyImpPtr& cbfunc, NIO& io,
 						std::size_t max_buffer_size, Args&&... args)
 			: stream_type(std::forward<Args>(args)...)
+			, transferdata_type(max_buffer_size)
 			, cio_(io)
 			, cbfunc_(cbfunc)
-			, buffer_(max_buffer_size)
 			, sessions_(sessions)
 			, ctimer_(cio_)
 		{
@@ -116,7 +117,7 @@ namespace net {
 
 		//imp
 		inline auto self_shared_ptr() { return this->shared_from_this(); }
-		inline asio::streambuf& buffer() { return buffer_; }
+		//inline asio::streambuf& buffer() { return buffer_; }
 		inline NIO& cio() { return cio_; }
 		inline void handle_recv(error_code ec, std::string&& s) {
 			if constexpr (is_kcp_streamtype_v<STREAMTYPE>) {
@@ -283,7 +284,6 @@ namespace net {
 		}
 	protected:
 		NIO & cio_;
-		asio::streambuf buffer_;
 
 		endpoint_type endpoint_;
 		endpoints_type endpoints_;

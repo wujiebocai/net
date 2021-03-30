@@ -76,7 +76,7 @@ namespace net {
 	protected:
 		template<bool isloop = true, class Fn, class Rep, class Period>
 		inline void post_timer(std::chrono::duration<Rep, Period> duration, Fn&& f) {
-			if (duration > std::chrono::milliseconds(0)) {
+			if (duration >= std::chrono::milliseconds(0)) {
 				this->timer_.expires_after(duration);
 				this->timer_.async_wait(asio::bind_executor(this->cio_.strand(),
 					[this, f = std::move(f)](const error_code& ec) mutable

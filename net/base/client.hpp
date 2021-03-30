@@ -39,6 +39,9 @@ namespace net {
 
 		template<bool isAsync = true, bool isKeepAlive = false>
 		inline bool add(std::string_view host, std::string_view port) {
+			if (!is_started()) {
+				return false;
+			}
 			clear_last_error();
 			std::shared_ptr<session_type> session_ptr = this->make_session();
 			return session_ptr->template start<isAsync, isKeepAlive>(host, port);

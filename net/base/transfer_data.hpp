@@ -8,7 +8,9 @@ namespace net {
 	template<class DRIVERTYPE, class SOCKETTYPE, class STREAMTYPE, class PROTOCOLTYPE, class SVRORCLI = svr_tab>
 	class TransferData {
 	public:
-		TransferData() : derive_(static_cast<DRIVERTYPE&>(*this)) {}
+		TransferData(std::size_t max_buffer_size) 
+			: derive_(static_cast<DRIVERTYPE&>(*this))
+			, buffer_(max_buffer_size) {}
 
 		~TransferData() = default;
 
@@ -98,16 +100,16 @@ namespace net {
 			if (!this->derive_.is_started())
 				return;
 			try {
-				asio::async_read(this->derive_.stream(), this->derive_.buffer(), asio::transfer_at_least(1),
+				asio::async_read(this->derive_.stream(), this->buffer_, asio::transfer_at_least(1),
 					asio::bind_executor(derive_.cio().strand(),
 						[this, selfptr = this->derive_.self_shared_ptr()](const error_code& ec, std::size_t bytes_recvd)
 				{
 					set_last_error(ec);
 					if (!ec) {
 						this->derive_.handle_recv(ec, std::string(reinterpret_cast<
-							std::string::const_pointer>(this->derive_.buffer().data().data()), bytes_recvd));
+							std::string::const_pointer>(this->buffer_.data().data()), bytes_recvd));
 
-						this->derive_.buffer().consume(bytes_recvd);
+						this->buffer_.consume(bytes_recvd);
 
 						this->do_recv_t<TSOCKETTYPE>();
 					}
@@ -335,7 +337,7 @@ namespace net {
 			}
 			kcp::ikcp_flush(pkcp);
 		}
-		/*inline void kcp_handle_recv(const error_code& ec, const std::string& s) {
+		inline void kcp_handle_recv(const error_code& ec, const std::string& s) {
 			if (!this->derive_.is_started())
 				return;
 			auto pkcp = this->derive_.kcp();
@@ -379,8 +381,9 @@ namespace net {
 					this->kcp_do_recv_t(s);
 			}
 			
-		}*/
+		}
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	protected:
 		//线程安全，保证执行得时序性.
 		template<bool IsAsync = true, class Callback>
 		inline bool send_enqueue(Callback&& f) {
@@ -429,6 +432,8 @@ namespace net {
 	protected:
 		DRIVERTYPE& derive_;
 		std::queue<std::function<bool()>>  send_queue_;
+
+		asio::streambuf buffer_;
 
 		t_buffer_cmdqueue<> ubuffer_;
 		std::size_t init_buffer_size_ = 1024;
