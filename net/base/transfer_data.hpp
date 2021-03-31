@@ -374,7 +374,8 @@ namespace net {
 						this->derive_.stop(asio::error::eof);
 					}
 					else if (kcp::is_kcphdr_synack(s, this->derive_.kcp_seq())) {
-						NET_ASSERT(false);
+						//NET_ASSERT(false);
+						//this->derive_.stop(asio::error::operation_aborted);
 					}
 				}
 				else

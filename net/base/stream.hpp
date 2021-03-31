@@ -46,6 +46,9 @@ namespace net {
 		}
 
 		inline void stream_stop(std::shared_ptr<DRIVERTYPE> dptr) {
+			if constexpr (is_udp_socket_v<SOCKETTYPE> && is_svr_v<SVRORCLI>) {
+				return;
+			}
 			socket_type::close();
 			//this->socket_.shutdown(asio::socket_base::shutdown_both, ec_ignore);
 			//this->socket_.close();
@@ -255,7 +258,9 @@ namespace net {
 
 			this->kcp_timer_.stop();
 			//this->kcp_timer1_.cancel();
-
+			if constexpr (is_udp_socket_v<SOCKETTYPE> && is_svr_v<SVRORCLI>) {
+				return;
+			}
 			socket_type::close();
 		}
 

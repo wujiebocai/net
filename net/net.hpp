@@ -1,6 +1,6 @@
 #pragma once
 
-#define NET_USE_SSL //主要用于测试，后面放到cmake里面去
+//#define NET_USE_SSL //主要用于测试，后面放到cmake里面去
 #include <asio/asio.hpp>
 #if defined(NET_USE_SSL)
 #include <asio/ssl.hpp>

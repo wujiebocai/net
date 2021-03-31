@@ -69,6 +69,7 @@ namespace net {
 
 					this->user_data_reset();
 					this->stream_stop(dptr);
+					ctimer_.stop();
 					State expected = State::stopping;
 					if (this->state_.compare_exchange_strong(expected, State::stopped)) {
 						cbfunc_->call(Event::disconnect, dptr, ec);

@@ -37,6 +37,7 @@ namespace net {
 		template<bool isloop = true, class Fn>
 		inline void post_timer(int64_t interval, Fn&& f) {
 			this->interval_ = std::chrono::milliseconds(interval);
+			this->timer_canceled_.clear();
 			return post_timer<isloop>(this->interval_, std::move(f));
 		}
 

@@ -59,7 +59,7 @@ namespace net {
 		}
 
 		inline void post_accept() {
-			if (!this->is_open())
+			if (!this->server_.is_started())
 				return;
 			try {
 				std::shared_ptr<SESSIONTYPE> session_ptr = this->server_.make_session();
@@ -183,7 +183,7 @@ namespace net {
 		}
 	protected:
 		inline void post_recv() {
-			if (!this->is_open())
+			if (!this->server_.is_started())
 				return;
 
 			try {
@@ -208,7 +208,7 @@ namespace net {
 				return;
 			}
 
-			if (!this->is_open())
+			if (!this->server_.is_started())
 				return;
 
 			this->buffer_.rd_flip(bytes_recvd);

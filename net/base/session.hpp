@@ -41,42 +41,51 @@ namespace net {
 		~Session() = default;
 
 		template<bool iskeepalive = false>
-		inline void start(error_code ec) {
+		inline bool start(error_code ec) {
 			//if (!this->cio_.strand().running_in_this_thread())
 			//	return asio::post(this->cio_.strand(), std::bind(&session_type::start<iskeepalive>, this, std::move(ec)));
-			const auto& dptr = this->shared_from_this();
-			this->stream_post_handshake(dptr, [this, dptr = this->shared_from_this()](const error_code& ec) {
-				try {
-					State expected = State::stopped;
-					if (!ec && !this->state_.compare_exchange_strong(expected, State::starting))
-						asio::detail::throw_error(asio::error::already_started);
-					//cbfunc_->call(Event::accept, dptr, ec);
+			asio::detail::throw_error(ec);
+			try {
+				const auto& dptr = this->shared_from_this();
+				this->stream_post_handshake(dptr, [this, dptr = this->shared_from_this()](const error_code& ec) {
+					try {
+						State expected = State::stopped;
+						if (!ec && !this->state_.compare_exchange_strong(expected, State::starting))
+							asio::detail::throw_error(asio::error::already_started);
+						//cbfunc_->call(Event::accept, dptr, ec);
 
-					if constexpr (iskeepalive && is_tcp_socket_v<SOCKETTYPE>)
-						this->keep_alive_options();
-					else
-						std::ignore = true;
+						if constexpr (iskeepalive && is_tcp_socket_v<SOCKETTYPE>)
+							this->keep_alive_options();
+						else
+							std::ignore = true;
 
-					expected = State::starting;
-					if (!ec && !this->state_.compare_exchange_strong(expected, State::started))
-						asio::detail::throw_error(asio::error::operation_aborted);
+						expected = State::starting;
+						if (!ec && !this->state_.compare_exchange_strong(expected, State::started))
+							asio::detail::throw_error(asio::error::operation_aborted);
 
-					cbfunc_->call(Event::connect, dptr, ec);
+						cbfunc_->call(Event::connect, dptr, ec);
 
-					asio::detail::throw_error(ec);
+						asio::detail::throw_error(ec);
 
-					//加入到sessionmgr
-					bool isadd = this->sessions_.emplace(dptr);
-					if (isadd)
-						this->do_recv();
-					else
-						this->stop(asio::error::address_in_use);
-				}
-				catch (system_error& e) {
-					set_last_error(e);
-					this->stop(e.code());
-				}
-			});
+						//加入到sessionmgr
+						bool isadd = this->sessions_.emplace(dptr);
+						if (isadd)
+							this->do_recv();
+						else
+							this->stop(asio::error::address_in_use);
+					}
+					catch (system_error& e) {
+						set_last_error(e);
+						this->stop(e.code());
+					}
+				});
+				return true;
+			}
+			catch (system_error& e) {
+				set_last_error(e);
+				this->stop(e.code());
+			}
+			return false;
 		}
 
 		inline void stop(const error_code& ec) {

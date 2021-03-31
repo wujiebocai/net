@@ -71,11 +71,17 @@ namespace net {
 
 				stopped_ = true;
 			}
-			this->wait_iothreads(); 
+			//this->wait_iothreads(); 
+			{
+				for (std::size_t i = 0; i < this->ios_.size(); ++i) {
+					asio::io_context& ioc = this->ios_.at(i).context();
+					ioc.stop();
+				}
+			}
 			{
 				std::lock_guard<std::mutex> guard(this->mutex_);
 
-				for (std::size_t i = 1; i < this->works_.size(); ++i) {
+				for (std::size_t i = 0; i < this->works_.size(); ++i) {
 					this->works_[i].reset();
 				}
 

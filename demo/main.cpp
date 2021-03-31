@@ -4,6 +4,50 @@
 #include "net.hpp"
 using namespace net;
 
+static std::string_view cer =
+"-----BEGIN CERTIFICATE-----\r\n"\
+"MIICcTCCAdoCCQDYl7YrsugMEDANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJD\r\n"\
+"TjEOMAwGA1UECAwFSEVOQU4xEjAQBgNVBAcMCVpIRU5HWkhPVTENMAsGA1UECgwE\r\n"\
+"SE5aWDENMAsGA1UECwwESE5aWDEMMAoGA1UEAwwDWkhMMR4wHAYJKoZIhvcNAQkB\r\n"\
+"Fg8zNzc5MjczOEBxcS5jb20wHhcNMTcxMDE1MTQzNjI2WhcNMjcxMDEzMTQzNjI2\r\n"\
+"WjB9MQswCQYDVQQGEwJDTjEOMAwGA1UECAwFSEVOQU4xEjAQBgNVBAcMCVpIRU5H\r\n"\
+"WkhPVTENMAsGA1UECgwESE5aWDENMAsGA1UECwwESE5aWDEMMAoGA1UEAwwDWkhM\r\n"\
+"MR4wHAYJKoZIhvcNAQkBFg8zNzc5MjczOEBxcS5jb20wgZ8wDQYJKoZIhvcNAQEB\r\n"\
+"BQADgY0AMIGJAoGBAMc2Svpl4UgxCVKGwoYJBxNWObXvQzw74ksY6Zoiq5tJNJzf\r\n"\
+"q9ZCJigwjx3vAFF7tELRxsgAf6l7AvReu1O6difjdpMkEic0W7acZtldislDjUbu\r\n"\
+"qitfHsWeKTucBu3+3TUawvv+fdeWgeN54jMoL+Oo3CV7d2gFRV2fD5z4tryXAgMB\r\n"\
+"AAEwDQYJKoZIhvcNAQELBQADgYEAwDIC3xYmYJ6kLI8NgmX89re0scSWCcA8VgEZ\r\n"\
+"u8roYjYauCLkp1aXNlZtJFQjwlfo+8FLzgp3dP8Y75YFwQ5zy8fFaLQSQ/0syDbx\r\n"\
+"sftKSVmxDo3S27IklEyJAIdB9eKBTeVvrT96R610j24t1eYENr59Vk6A/fKTWJgU\r\n"\
+"EstmrAs=\r\n"\
+"-----END CERTIFICATE-----\r\n";
+
+static std::string_view key =
+"-----BEGIN RSA PRIVATE KEY-----\r\n"\
+"Proc-Type: 4,ENCRYPTED\r\n"\
+"DEK-Info: DES-EDE3-CBC,EC5314BD06CD5FB6\r\n"\
+"\r\n"\
+"tP93tjR4iOGfOLHjIBQA0aHUE5wQ7EDcUeKacFfuYrtlYbYpbRzhQS+vGtoO1wGg\r\n"\
+"h/s9DbEN1XaiV9aE+N3E54zu2LuVO1lYDtCf3L26cd1Bu6gj0cWiAMco1Vm7RV9j\r\n"\
+"vmgmeOYkqbOiAbiIa4HCmDkEaHY4nCPlW+cdYxrozkAQCAiTpFQR8taRB0lsly0i\r\n"\
+"lUQitYLz3nhEMucLffcwAXN9IOnXFoURVZnLc53CX857iizOXeP9XeNE63UwDZ4v\r\n"\
+"1wnglnGUJA6vCxnxk6KvptF9rSdCD/sz1Y+J5mAVr+2y4vPLO4YOCL6HSFY6285M\r\n"\
+"RyGNVVx3vX0u6FbWJC3qt5yj6tMdVJ4O7U4XgqOKnS5jVLk+fKcTVyNySB5yAT2b\r\n"\
+"qwWCZcRPP2M+qlsSWhgzsucyz0eVOPVJxAJ4Vp/X6saO4xyRPsFV3USbRKlOMS7+\r\n"\
+"SEJ/7ANU9mEgLIQRKEfSKXWpQtm95pCVlajWQ7/3nXNjdV7mNi42ukdItBvOtdv+\r\n"\
+"oUiN8MkP/e+4SsGmJayNT7HvBC9DjoyDQIK6sZOgtsbAu/bDBhPnjnNsZcsgxJ/O\r\n"\
+"ijnj+0HyNS/Vr6emAkxTFgryUdBTuoY7019vcNWTYPDS3ugpe3goRHE0FTOwNdUe\r\n"\
+"dk+KM4bYAa0+1z1QEZTEoNqdT7WYwMD1QzgSWukYHemsWqoAvW5f4PrdoVA21W9D\r\n"\
+"L8I1YZf8ZHBnkuGX0oHi5w/4DkVNOT5BaZRmqXinZgFPwduYGVCh04x7ohuOQ5m0\r\n"\
+"etrTAVwJd2mcI7rDTaKCPT528/QWxZxXpHzggRoDil/5T7fn35ixRg==\r\n"\
+"-----END RSA PRIVATE KEY-----\r\n";
+
+static std::string_view dh =
+"-----BEGIN DH PARAMETERS-----\r\n"\
+"MEYCQQCdoJif7jYqTh5+vLgt3q1FZvG+7WymoAoMKWMNOtqLZ+uFhZH3e9vFhV7z\r\n"\
+"NgWnHCe/vsGJok2wHS4R/laH6MQTAgEC\r\n"\
+"-----END DH PARAMETERS-----\r\n";
+
 template<class SVRTYPE>
 class SvrProxy : public SVRTYPE {
 public:
@@ -54,112 +98,13 @@ public:
 			std::cout << "handshake client" << ec.message() << std::endl;
 		});
 		this->bind(Event::disconnect, [](session_ptr_type& ptr, error_code ec) {
-			std::cout << "disconnect client" << std::endl;
+			std::cout << "disconnect client" << ec.message() << std::endl;
 		});
 		this->bind(Event::recv, [](session_ptr_type& ptr, std::string&& s) {
 			ptr->send(std::move(s));
 		});
 	}
 };
-
-void tcp_test() {
-	// svr
-	SvrProxy<TcpSvr> svr(8);
-	svr.start("0.0.0.0", "8888");
-	// client
-	CliProxy<TcpCli> cli(4);
-	cli.start();
-	for (int i = 0; i < 42; ++i) {
-		cli.add("127.0.0.1", "8888");
-	}
-}
-
-void udp_test() {
-	// svr
-	SvrProxy<UdpSvr> svr(8);
-	svr.start("0.0.0.0", "8888");
-	// client
-	CliProxy<UdpCli> cli(4);
-	cli.start();
-	for (int i = 0; i < 42; ++i) {
-		cli.add("127.0.0.1", "8888");
-	}
-}
-
-void kcp_test() {
-	// svr
-	SvrProxy<KcpSvr> svr(1);
-	svr.start("0.0.0.0", "8888");
-	// client
-	CliProxy<KcpCli> cli(4);
-	cli.start();
-	for (int i = 0; i < 20; ++i) {
-		cli.add("127.0.0.1", "8888");
-	}
-}
-
-void tcp_ssl_test() {
-#ifdef NET_USE_SSL
-	std::string_view cer =
-		"-----BEGIN CERTIFICATE-----\r\n"\
-		"MIICcTCCAdoCCQDYl7YrsugMEDANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJD\r\n"\
-		"TjEOMAwGA1UECAwFSEVOQU4xEjAQBgNVBAcMCVpIRU5HWkhPVTENMAsGA1UECgwE\r\n"\
-		"SE5aWDENMAsGA1UECwwESE5aWDEMMAoGA1UEAwwDWkhMMR4wHAYJKoZIhvcNAQkB\r\n"\
-		"Fg8zNzc5MjczOEBxcS5jb20wHhcNMTcxMDE1MTQzNjI2WhcNMjcxMDEzMTQzNjI2\r\n"\
-		"WjB9MQswCQYDVQQGEwJDTjEOMAwGA1UECAwFSEVOQU4xEjAQBgNVBAcMCVpIRU5H\r\n"\
-		"WkhPVTENMAsGA1UECgwESE5aWDENMAsGA1UECwwESE5aWDEMMAoGA1UEAwwDWkhM\r\n"\
-		"MR4wHAYJKoZIhvcNAQkBFg8zNzc5MjczOEBxcS5jb20wgZ8wDQYJKoZIhvcNAQEB\r\n"\
-		"BQADgY0AMIGJAoGBAMc2Svpl4UgxCVKGwoYJBxNWObXvQzw74ksY6Zoiq5tJNJzf\r\n"\
-		"q9ZCJigwjx3vAFF7tELRxsgAf6l7AvReu1O6difjdpMkEic0W7acZtldislDjUbu\r\n"\
-		"qitfHsWeKTucBu3+3TUawvv+fdeWgeN54jMoL+Oo3CV7d2gFRV2fD5z4tryXAgMB\r\n"\
-		"AAEwDQYJKoZIhvcNAQELBQADgYEAwDIC3xYmYJ6kLI8NgmX89re0scSWCcA8VgEZ\r\n"\
-		"u8roYjYauCLkp1aXNlZtJFQjwlfo+8FLzgp3dP8Y75YFwQ5zy8fFaLQSQ/0syDbx\r\n"\
-		"sftKSVmxDo3S27IklEyJAIdB9eKBTeVvrT96R610j24t1eYENr59Vk6A/fKTWJgU\r\n"\
-		"EstmrAs=\r\n"\
-		"-----END CERTIFICATE-----\r\n";
-
-	std::string_view key =
-		"-----BEGIN RSA PRIVATE KEY-----\r\n"\
-		"Proc-Type: 4,ENCRYPTED\r\n"\
-		"DEK-Info: DES-EDE3-CBC,EC5314BD06CD5FB6\r\n"\
-		"\r\n"\
-		"tP93tjR4iOGfOLHjIBQA0aHUE5wQ7EDcUeKacFfuYrtlYbYpbRzhQS+vGtoO1wGg\r\n"\
-		"h/s9DbEN1XaiV9aE+N3E54zu2LuVO1lYDtCf3L26cd1Bu6gj0cWiAMco1Vm7RV9j\r\n"\
-		"vmgmeOYkqbOiAbiIa4HCmDkEaHY4nCPlW+cdYxrozkAQCAiTpFQR8taRB0lsly0i\r\n"\
-		"lUQitYLz3nhEMucLffcwAXN9IOnXFoURVZnLc53CX857iizOXeP9XeNE63UwDZ4v\r\n"\
-		"1wnglnGUJA6vCxnxk6KvptF9rSdCD/sz1Y+J5mAVr+2y4vPLO4YOCL6HSFY6285M\r\n"\
-		"RyGNVVx3vX0u6FbWJC3qt5yj6tMdVJ4O7U4XgqOKnS5jVLk+fKcTVyNySB5yAT2b\r\n"\
-		"qwWCZcRPP2M+qlsSWhgzsucyz0eVOPVJxAJ4Vp/X6saO4xyRPsFV3USbRKlOMS7+\r\n"\
-		"SEJ/7ANU9mEgLIQRKEfSKXWpQtm95pCVlajWQ7/3nXNjdV7mNi42ukdItBvOtdv+\r\n"\
-		"oUiN8MkP/e+4SsGmJayNT7HvBC9DjoyDQIK6sZOgtsbAu/bDBhPnjnNsZcsgxJ/O\r\n"\
-		"ijnj+0HyNS/Vr6emAkxTFgryUdBTuoY7019vcNWTYPDS3ugpe3goRHE0FTOwNdUe\r\n"\
-		"dk+KM4bYAa0+1z1QEZTEoNqdT7WYwMD1QzgSWukYHemsWqoAvW5f4PrdoVA21W9D\r\n"\
-		"L8I1YZf8ZHBnkuGX0oHi5w/4DkVNOT5BaZRmqXinZgFPwduYGVCh04x7ohuOQ5m0\r\n"\
-		"etrTAVwJd2mcI7rDTaKCPT528/QWxZxXpHzggRoDil/5T7fn35ixRg==\r\n"\
-		"-----END RSA PRIVATE KEY-----\r\n";
-
-	std::string_view dh =
-		"-----BEGIN DH PARAMETERS-----\r\n"\
-		"MEYCQQCdoJif7jYqTh5+vLgt3q1FZvG+7WymoAoMKWMNOtqLZ+uFhZH3e9vFhV7z\r\n"\
-		"NgWnHCe/vsGJok2wHS4R/laH6MQTAgEC\r\n"\
-		"-----END DH PARAMETERS-----\r\n";
-
-	// svr
-	SvrProxy<TcpsSvr> svr(8);
-	svr.set_cert("test", cer, key, dh); // 使用字符串测试
-	//svr->get_netstream().set_cert_file("test", "server.crt", "server.key", "dh512.pem"); // 使用文件测试
-	svr.start("0.0.0.0", "8888");
-
-	// client
-	CliProxy<TcpsCli> cli(4);
-	cli.start();
-	cli.set_cert(cer); //使用字符串测试
-	//cli->get_netstream().set_cert_file("server.crt"); //使用文件测试
-	for (int i = 0; i < 42; ++i) {
-		cli.add("127.0.0.1", "8888");
-	}
-#endif
-}
 
 ///////////////////协议代理测试///////////////////////////////////////////////////////
 struct protodata {
@@ -214,14 +159,53 @@ void test_msg_proxy() {
 asio::io_context g_context_(1);
 asio::io_context::strand g_context_s_(g_context_);
 int main(int argc, char * argv[]){
-	////因为TcpSvr与TcpCli都使用了std::enable_shared_from_this，所以必须以智能指针方式创建，后面在优化.
-	//tcp_test();
+//////////////////////////////tcp//////////////////////////////
+	// svr
+	SvrProxy<TcpSvr> tcpsvr(8);
+	tcpsvr.start("0.0.0.0", "8888");
+	// client
+	CliProxy<TcpCli> tcpcli(4);
+	tcpcli.start();
+	for (int i = 0; i < 42; ++i) {
+		tcpcli.add("127.0.0.1", "8888");
+	}
+//////////////////////////////udp 和 kcp 不能同时测试//////////////////////////////
+	// svr
+	SvrProxy<UdpSvr> udpsvr(1);
+	udpsvr.start("0.0.0.0", "8888");
+	// client
+	CliProxy<UdpCli> udpcli(1);
+	udpcli.start();
+	for (int i = 0; i < 42; ++i) {
+		udpcli.add("127.0.0.1", "8888");
+	}
+//////////////////////////////udp 和 kcp 不能同时测试//////////////////////////////
+	// svr
+	SvrProxy<KcpSvr> kcpsvr(1);
+	kcpsvr.start("0.0.0.0", "8888");
+	// client
+	CliProxy<KcpCli> kcpcli(1);
+	kcpcli.start();
+	for (int i = 0; i < 42; ++i) {
+		kcpcli.add("127.0.0.1", "8888");
+	}
+//////////////////////////////ssl//////////////////////////////
+#ifdef NET_USE_SSL
+	// svr
+	SvrProxy<TcpsSvr> sslsvr(8);
+	sslsvr.set_cert("test", cer, key, dh); // 使用字符串测试
+	//svr->get_netstream().set_cert_file("test", "server.crt", "server.key", "dh512.pem"); // 使用文件测试
+	sslsvr.start("0.0.0.0", "8888");
 
-	//tcp_ssl_test();
-
-	//udp_test();
-
-	kcp_test();
+	// client
+	CliProxy<TcpsCli> sslcli(4);
+	sslcli.start();
+	sslcli.set_cert(cer); //使用字符串测试
+	//cli->get_netstream().set_cert_file("server.crt"); //使用文件测试
+	for (int i = 0; i < 42; ++i) {
+		sslcli.add("127.0.0.1", "8888");
+	}
+#endif
 	
 	//test_msg_proxy();
 

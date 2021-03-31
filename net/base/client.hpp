@@ -105,7 +105,7 @@ namespace net {
 					, cio.context());
 			}
 			if constexpr (is_kcp_streamtype_v<STREAMTYPE>) {
-				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio_, this->max_buffer_size_, cio_, cio.context());
+				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio, this->max_buffer_size_, cio, cio.context());
 			}
 		}
 
