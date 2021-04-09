@@ -122,4 +122,21 @@ namespace net {
 
 		std::chrono::time_point<std::chrono::system_clock> active_time_ = std::chrono::system_clock::now();
 	};
+
+	template<class Rep, class Period, class Fn>
+	std::shared_ptr<asio::steady_timer> make_tm_timer(NIO& io, std::chrono::duration<Rep, Period> duration, Fn&& fn) {
+		std::shared_ptr<asio::steady_timer> timer = std::make_shared<asio::steady_timer>(io.context());
+		auto post = std::make_shared<std::unique_ptr<std::function<void()>>>();
+		*post = std::make_unique<std::function<void()>>([&io, duration, f = std::forward<Fn>(fn), timer, post]() {
+			timer->expires_after(duration);
+			timer->async_wait(asio::bind_executor(io.strand(), [&f, &post](const error_code& ec) mutable {
+				if (f(ec))
+					(**post)();
+				else
+					(*post).reset();
+			}));
+		});
+		(**post)();
+		return timer;
+	}
 }

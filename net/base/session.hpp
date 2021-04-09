@@ -44,22 +44,22 @@ namespace net {
 		inline bool start(error_code ec) {
 			//if (!this->cio_.strand().running_in_this_thread())
 			//	return asio::post(this->cio_.strand(), std::bind(&session_type::start<iskeepalive>, this, std::move(ec)));
-			asio::detail::throw_error(ec);
 			try {
+				asio::detail::throw_error(ec);
+				State expected = State::stopped;
+				if (!ec && !this->state_.compare_exchange_strong(expected, State::starting))
+					asio::detail::throw_error(asio::error::already_started);
+				//cbfunc_->call(Event::accept, dptr, ec);
+
+				if constexpr (iskeepalive && is_tcp_socket_v<SOCKETTYPE>)
+					this->keep_alive_options();
+				else
+					std::ignore = true;
+
 				const auto& dptr = this->shared_from_this();
 				this->stream_post_handshake(dptr, [this, dptr = this->shared_from_this()](const error_code& ec) {
 					try {
-						State expected = State::stopped;
-						if (!ec && !this->state_.compare_exchange_strong(expected, State::starting))
-							asio::detail::throw_error(asio::error::already_started);
-						//cbfunc_->call(Event::accept, dptr, ec);
-
-						if constexpr (iskeepalive && is_tcp_socket_v<SOCKETTYPE>)
-							this->keep_alive_options();
-						else
-							std::ignore = true;
-
-						expected = State::starting;
+						State expected = State::starting;
 						if (!ec && !this->state_.compare_exchange_strong(expected, State::started))
 							asio::detail::throw_error(asio::error::operation_aborted);
 
@@ -135,16 +135,9 @@ namespace net {
 			}
 		}
 
-		//imp(stream, self_shared_ptr, buffer, stop, is_started, handle_recv)
+		//imp
 		inline auto self_shared_ptr() { return this->shared_from_this(); }
-		//inline asio::streambuf& buffer() { return buffer_; }
 		inline NIO& cio() { return cio_; }
-		inline void handle_recv(error_code ec, std::string&& s) {
-			if constexpr (is_kcp_streamtype_v<STREAMTYPE>) {
-				return this->kcp_handle_recv(ec, s);
-			}
-			cbfunc_->call(Event::recv, this->self_shared_ptr(), std::move(s));
-		}
 		inline void set_first_pack(std::string&& str) { first_pack_ = std::move(str); }
 		inline auto& get_first_pack() { return first_pack_; }
 		inline t_buffer_cmdqueue<>& rbuffer() { return rbuff_; }

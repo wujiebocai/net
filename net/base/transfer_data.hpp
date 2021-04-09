@@ -337,8 +337,8 @@ namespace net {
 			}
 			kcp::ikcp_flush(pkcp);
 		}
-		inline void kcp_handle_recv(const error_code& ec, const std::string& s) {
-			if (!this->derive_.is_started())
+		/*inline void kcp_handle_recv(const error_code& ec, const std::string& s) {
+			if (ec || !this->derive_.is_started())
 				return;
 			auto pkcp = this->derive_.kcp();
 			if (!pkcp) {
@@ -375,14 +375,14 @@ namespace net {
 					}
 					else if (kcp::is_kcphdr_synack(s, this->derive_.kcp_seq())) {
 						//NET_ASSERT(false);
-						//this->derive_.stop(asio::error::operation_aborted);
+						this->derive_.stop(asio::error::operation_aborted);
 					}
 				}
 				else
 					this->kcp_do_recv_t(s);
 			}
 			
-		}
+		}*/
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	protected:
 		//线程安全，保证执行得时序性.

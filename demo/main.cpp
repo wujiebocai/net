@@ -62,7 +62,7 @@ public:
 			std::cout << "handshake" << ec.message() << std::endl;
 		});
 		this->bind(Event::disconnect, [](session_ptr_type& ptr, error_code ec) {
-			std::cout << "disconnect" << std::endl;
+			std::cout << "disconnect" << ec.message() << std::endl;
 		});
 		this->bind(Event::recv, [&](session_ptr_type& ptr, std::string&& s) {
 			//std::cout << s << std::endl;

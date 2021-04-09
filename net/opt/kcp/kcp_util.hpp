@@ -20,12 +20,7 @@
 #include <string_view>
 #include <chrono>
 
-/*
-#include <asio2/base/selector.hpp>
-#include <asio2/base/error.hpp>
-#include <asio2/base/detail/condition_wrap.hpp>*/
-
-#include "base/detail/ikcp.h"
+#include "opt/kcp/ikcp.h"
 
 namespace net::kcp
 {

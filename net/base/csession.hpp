@@ -27,7 +27,8 @@ namespace net {
 		using endpoints_type = typename resolver_type::results_type;
 		using endpoint_type = typename SOCKETTYPE::lowest_layer_type::endpoint_type;
 		using endpoints_iterator = typename endpoints_type::iterator;
-		using key_type = typename std::conditional<is_udp_socket_v<SOCKETTYPE>, asio::ip::udp::endpoint, std::size_t>::type;
+		//using key_type = typename std::conditional<is_udp_socket_v<SOCKETTYPE>, asio::ip::udp::endpoint, std::size_t>::type;
+		using key_type = std::size_t;
 	public:
 		template<class ...Args>
 		explicit CSession(SessionMgr<session_type>& sessions, FuncProxyImpPtr& cbfunc, NIO& io,
@@ -120,12 +121,6 @@ namespace net {
 		inline auto self_shared_ptr() { return this->shared_from_this(); }
 		//inline asio::streambuf& buffer() { return buffer_; }
 		inline NIO& cio() { return cio_; }
-		inline void handle_recv(error_code ec, std::string&& s) {
-			if constexpr (is_kcp_streamtype_v<STREAMTYPE>) {
-				return this->kcp_handle_recv(ec, s);
-			}
-			cbfunc_->call(Event::recv, this->self_shared_ptr(), std::move(s));
-		}
 		inline auto& cbfunc() { return cbfunc_; }
 		inline t_buffer_cmdqueue<>& rbuffer() { return rbuff_; }
 
@@ -136,13 +131,14 @@ namespace net {
 			return (this->state_ == State::stopped && !this->socket_.lowest_layer().is_open());
 		}
 		inline const key_type hash_key() {
-			if constexpr (is_tcp_socket_v<SOCKETTYPE>) {
+			return reinterpret_cast<key_type>(this);
+			/*if constexpr (is_tcp_socket_v<SOCKETTYPE>) {
 				return reinterpret_cast<key_type>(this);
 			}
 			else if constexpr (is_udp_socket_v<SOCKETTYPE>) {
 				//return this->remote_endpoint_;
 				return this->stream().lowest_layer().local_endpoint();
-			}
+			}*/
 		}
 
 		template<class DataT>

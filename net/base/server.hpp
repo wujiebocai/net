@@ -108,7 +108,7 @@ namespace net {
 		}
 
 		//广播所有session
-		inline void send(const std::string_view && data) {
+		inline void broadcast(const std::string_view && data) {
 			this->sessions_.foreach([&data](session_ptr_type& session_ptr) {
 				session_ptr->send(data);
 			});
