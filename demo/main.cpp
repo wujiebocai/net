@@ -189,6 +189,9 @@ int main(int argc, char * argv[]){
 	for (int i = 0; i < 42; ++i) {
 		kcpcli.add("127.0.0.1", "8888");
 	}
+//////////////////////////////websocket 不建议和tcp使用同一个端口//////////////////////////////////////////////
+	SvrProxy<WebsocketSvr> wssvr(4);
+	wssvr.start("0.0.0.0", "8889");
 //////////////////////////////ssl//////////////////////////////
 #ifdef NET_USE_SSL
 	// svr

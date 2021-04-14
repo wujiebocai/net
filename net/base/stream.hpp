@@ -44,7 +44,8 @@ namespace net {
 		inline auto& stream() { return socket_type::stream(); }
 		inline auto& remote_endpoint() { return remote_endpoint_; }
 		inline void handle_recv(error_code ec, const std::string& s) {
-			this->derive_.cbfunc()->call(Event::recv, this->derive_.self_shared_ptr(), std::move(s));
+			//this->derive_.cbfunc()->call(Event::recv, this->derive_.self_shared_ptr(), std::move(s));
+			this->derive_.parse_proto(std::move(ec), std::move(s));
 		}
 	protected:
 		inline void stream_start(std::shared_ptr<DRIVERTYPE> dptr) {
@@ -94,7 +95,8 @@ namespace net {
 
 		inline stream_type& stream() { return this->ssl_stream_; }
 		inline void handle_recv(error_code ec, const std::string& s) {
-			this->derive_.cbfunc()->call(Event::recv, this->derive_.self_shared_ptr(), std::move(s));
+			//this->derive_.cbfunc()->call(Event::recv, this->derive_.self_shared_ptr(), std::move(s));
+			this->derive_.parse_proto(std::move(ec), std::move(s));
 		}
 	protected:
 		inline void stream_start(std::shared_ptr<DRIVERTYPE> dptr) {

@@ -11,12 +11,14 @@
 #include "base/stream.hpp"
 #include "base/timer.hpp"
 #include "base/transfer_data.hpp"
+#include "base/proto.hpp"
 #include "tool/bytebuffer.hpp"
 
 namespace net {
 	template<class SOCKETTYPE, class STREAMTYPE = void, class PROTOCOLTYPE = void>
 	class CSession : public StreamType<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE, cli_tab>
 				   , public TransferData<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE, cli_tab>
+				   , public NetProto<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, PROTOCOLTYPE, cli_tab>
 				   , public std::enable_shared_from_this<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>> {
 	public:
 		using session_type = CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;

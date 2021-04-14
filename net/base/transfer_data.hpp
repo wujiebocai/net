@@ -14,7 +14,13 @@ namespace net {
 
 		~TransferData() = default;
 
-		inline bool send(const std::string&& data) {
+		template<class DATATYPE>
+		inline bool send(DATATYPE&& data) {
+			if constexpr (!std::is_void_v<PROTOCOLTYPE>) {
+				if (!this->derive_.pack_proto(std::forward<DATATYPE>(data))) {
+					return false;
+				}
+			}
 			if constexpr (is_tcp_socket_v<SOCKETTYPE>) { // tcp
 				return this->send_t(std::move(data));
 			}
@@ -326,8 +332,11 @@ namespace net {
 					ubuffer_.wr_flip(len);
 					/*this->derive_.handle_recv(ec_ignore, std::string(reinterpret_cast<
 						std::string::const_pointer>(ubuffer_.rd_buf()), len));*/
-					this->derive_.cbfunc()->call(Event::recv, this->derive_.self_shared_ptr(), std::string(reinterpret_cast<
+					/*this->derive_.cbfunc()->call(Event::recv, this->derive_.self_shared_ptr(), std::string(reinterpret_cast<
+						std::string::const_pointer>(ubuffer_.rd_buf()), len));*/
+					this->derive_.parse_proto(ec_ignore, std::string(reinterpret_cast<
 						std::string::const_pointer>(ubuffer_.rd_buf()), len));
+
 					ubuffer_.rd_flip(len);
 				}
 				else if (len == -3) {
