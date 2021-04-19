@@ -24,7 +24,7 @@ namespace net {
 		using session_type = CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
 		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE, cli_tab>;
-		using transferdata_type = TransferData<CSession<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE, cli_tab>;
+		using transferdata_type = TransferData<session_type, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE, cli_tab>;
 		using resolver_type = typename asio::ip::basic_resolver<typename SOCKETTYPE::protocol_type>;
 		using endpoints_type = typename resolver_type::results_type;
 		using endpoint_type = typename SOCKETTYPE::lowest_layer_type::endpoint_type;

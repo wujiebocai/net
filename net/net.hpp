@@ -24,8 +24,10 @@ using TcpSvr = net::Server<asio::ip::tcp::socket, net::binary_stream_flag>;
 using TcpCli = net::Client<asio::ip::tcp::socket, net::binary_stream_flag>;
 
 //tcps
+#if defined(NET_USE_SSL)
 using TcpsSvr = net::Server<asio::ip::tcp::socket, net::ssl_stream_flag>;
 using TcpsCli = net::Client<asio::ip::tcp::socket, net::ssl_stream_flag>;
+#endif
 
 //udp
 using UdpSvr = net::Server<asio::ip::udp::socket&, net::binary_stream_flag>;
@@ -40,8 +42,10 @@ using WebsocketSvr = net::Server<asio::ip::tcp::socket, net::binary_stream_flag,
 //using WebsocketCli = net::Client<asio::ip::tcp::socket, net::binary_stream_flag, net::websocket_proto_flag>;
 
 //websockets
+#if defined(NET_USE_SSL)
 using WebsocketsSvr = net::Server<asio::ip::tcp::socket, net::ssl_stream_flag, net::websocket_proto_flag>;
 //using WebsocketsCli = net::Client<asio::ip::tcp::socket, net::ssl_stream_flag, net::websocket_proto_flag>;
+#endif
 
 //下面得都有待实现
 //http
@@ -49,6 +53,7 @@ using HttpSvr = net::Server<asio::ip::tcp::socket, net::binary_stream_flag, net:
 using HttpCli = net::Client<asio::ip::tcp::socket, net::binary_stream_flag, net::http_proto_flag>;
 
 //https
+#if defined(NET_USE_SSL)
 using HttpsSvr = net::Server<asio::ip::tcp::socket, net::ssl_stream_flag, net::http_proto_flag>;
 using HttpsCli = net::Client<asio::ip::tcp::socket, net::ssl_stream_flag, net::http_proto_flag>;
-
+#endif

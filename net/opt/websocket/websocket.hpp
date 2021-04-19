@@ -25,7 +25,7 @@
 
 
 #include <unordered_map>
-#include <inttypes.h>
+//#include <inttypes.h>
 #include "opt/common/sha1.hpp"
 #include "opt/common/base64.hpp"
 #include "opt/common/md5.hpp"
@@ -48,7 +48,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			reset();
 		}
 
-		void reset() {
+		inline void reset() {
 			fin = rsv1 = rsv2 = rsv3 = opcode = mask = payloadlen = 0;
 		}
 	};
@@ -59,14 +59,14 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 		std::uint8_t maskkey[4] = { 0 };
 		std::uint32_t headlength = 0;//协议头长度
 
-		void reset() {
+		inline void reset() {
 			mark.reset();
 			std::memset(maskkey, 0, 4);
 			reallength = 0;
 			headlength = 0;
 		}
 		
-		void log() {
+		inline void log() {
 			std::cout << "===============================接收到的协议包头相关信息=====================================" << std::endl;
 			std::cout << "fin: " << (int)this->mark.fin << "\nrsv1: " << (int)this->mark.rsv1 << "\nrsv2: " << (int)this->mark.rsv2 << "\nrsv3: " << (int)this->mark.rsv3
 				<< "\nopcode: " << (int)this->mark.opcode << "\nmask: " << (int)this->mark.mask << "\nmask_key: " << (int*)this->maskkey << "\npayloadlen: " << (int)this->mark.payloadlen
@@ -78,7 +78,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 		std::uint8_t fin = 1;
 		std::uint8_t opcode = 2;
 		std::uint8_t mask = 0;
-		void reset() {
+		inline void reset() {
 			fin = 1; opcode = 2; mask = 0;
 		}
 	};
@@ -88,7 +88,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 		WebSocket() = default;
 		~WebSocket() = default;
 	public:
-		bool get_handshark_pack(std::string& response) {
+		inline bool get_handshark_pack(std::string& response) {
 			std::string server_key;
 
 			HEADER_MAP::iterator itr = header_map_.find("Sec-WebSocket-Key1");
@@ -120,7 +120,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			return true;
 		}
 		//生成key(chrome版本)
-		bool generate_key_chrome(std::string& key) {
+		inline bool generate_key_chrome(std::string& key) {
 			key = header_map_["Sec-WebSocket-Key"];
 			if (key.empty()) {
 				return false;
@@ -133,7 +133,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			return true;
 		}
 		//生成key(safari版本), 该接口有待真实环境测试
-		bool generate_key_safari(std::string& key) {
+		inline bool generate_key_safari(std::string& key) {
 			std::string const& key1 = header_map_["Sec-WebSocket-Key1"];
 			std::string const& key2 = header_map_["Sec-WebSocket-Key2"];
 			std::string const& key3 = header_map_["Sec-WebSocket-Key3"];
@@ -151,7 +151,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 
 			return true;
 		}
-		void decode_client_key(std::string const& key, char* result) const {
+		inline void decode_client_key(std::string const& key, char* result) const {
 			unsigned int spaces = 0;
 			std::string digits;
 			std::uint32_t num;
@@ -177,7 +177,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			}
 		}
 
-		int parse_http_info(const char* buff) {
+		inline int parse_http_info(const char* buff) {
 			header_map_.clear();
 			std::istringstream s(buff);
 			std::string request;
@@ -228,7 +228,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			return 0;
 		}
 
-		bool analysis_msg(const char* ptCmd, const unsigned int nCmdLen) {
+		inline bool analysis_msg(const char* ptCmd, const unsigned int nCmdLen) {
 			ws_header_.reset();
 			
 			int pos = 0;
@@ -243,7 +243,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 
 			return check_unpack(nCmdLen);
 		}
-		int fetch_base(const char* msg, int& pos) {
+		inline int fetch_base(const char* msg, int& pos) {
 			ws_header_.mark.fin = ((unsigned char)msg[pos] >> 7);
 			ws_header_.mark.rsv1 = msg[pos] & 0x40;
 			ws_header_.mark.rsv2 = msg[pos] & 0x20;
@@ -252,11 +252,11 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			pos++;
 			return pos;
 		}
-		int fetch_hasmask(const char* msg, int& pos) {
+		inline int fetch_hasmask(const char* msg, int& pos) {
 			ws_header_.mark.mask = ((unsigned char)msg[pos] >> 7);
 			return pos;
 		}
-		int fetch_packagelength(const char* msg, int& pos) {
+		inline int fetch_packagelength(const char* msg, int& pos) {
 			ws_header_.mark.payloadlen = msg[pos] & 0x7f;
 			ws_header_.reallength = ws_header_.mark.payloadlen;
 			pos++;
@@ -274,20 +274,20 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			}
 			return pos;
 		}
-		int fetch_maskkey(const char* msg, int& pos) {
+		inline int fetch_maskkey(const char* msg, int& pos) {
 			if (ws_header_.mark.mask == 0)
 				return 0;
 			std::memcpy(ws_header_.maskkey, &msg[pos], 4);
 			pos += 4;
 			return 0;
 		}
-		int fetch_packagedata(const char* msg, int& pos) {
+		inline int fetch_packagedata(const char* msg, int& pos) {
 			ws_header_.headlength = pos;
 			pos += ws_header_.reallength;
 			return 0;
 		}
 
-		bool mask_dec(char* msg, int len) {
+		inline bool mask_dec(char* msg, int len) {
 			if (len != ws_header_.reallength) {
 				return false;
 			}
@@ -300,19 +300,20 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			return true;
 		}
 
-		bool check_unpack(unsigned int buffLen) {
+		inline bool check_unpack(unsigned int buffLen) {
+			constexpr std::size_t marklen = sizeof(WebSocketMark);
 			unsigned int headLen = 0;
-			if (buffLen < sizeof(WebSocketMark)) {
+			if (buffLen < marklen) {
 				return false;
 			}
 			if (ws_header_.mark.payloadlen < 126) {
-				headLen = sizeof(WebSocketMark);
+				headLen = marklen;
 			}
 			else if (ws_header_.mark.payloadlen == 126) {
-				headLen = sizeof(WebSocketMark) + 2;
+				headLen = marklen + 2;
 			}
 			else if (ws_header_.mark.payloadlen == 127) {
-				headLen = sizeof(WebSocketMark) + 8;
+				headLen = marklen + 8;
 			}
 			if (ws_header_.mark.mask == 1) {
 				headLen += 4;
@@ -329,7 +330,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			return true;
 		}
 
-		int pack_data(const std::string& message, std::string& outstr, std::uint8_t fin, std::uint8_t opcode, std::uint8_t mask) {
+		inline int pack_data(const std::string& message, std::string& outstr, std::uint8_t fin, std::uint8_t opcode, std::uint8_t mask) {
 			int headLen = 0;
 			std::size_t msgLen = message.length();
 			if (msgLen <= 0) {
@@ -382,7 +383,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			return slen;
 		}
 
-		int get_pack_data(const std::string& message, std::string& outstr) {
+		inline int get_pack_data(const std::string& message, std::string& outstr) {
 			penv_.opcode = ws_header_.mark.opcode;
 			std::size_t nPackLen = pack_data(message, outstr, penv_.fin, penv_.opcode, penv_.mask);
 			penv_.reset();
@@ -392,11 +393,11 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			return nPackLen;
 		}
 
-		ProtoEnv* get_pack_env() { return &penv_; }
-		WebSocketHeader* get_proto_heard() { return &ws_header_; }
+		inline ProtoEnv* get_pack_env() { return &penv_; }
+		inline WebSocketHeader* get_proto_heard() { return &ws_header_; }
 
 		template<class Fn>
-		void parse(const std::string& s, Fn&& fn) {
+		inline void parse(const std::string& s, Fn&& fn) {
 			auto slen = s.length();
 			if (slen <= 0) {
 				return;
@@ -406,10 +407,6 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 				if (rcv_buffer_.rd_ready()) {
 					bool ret = analysis_msg(rcv_buffer_.rd_buf(), rcv_buffer_.rd_size());
 					if (!ret) {
-						break;
-					}
-					if (ws_header_.mark.opcode == 8) { //客户端请求关闭
-						fn(ws_header_.mark.opcode, pack_close_data());
 						break;
 					}
 					if (rcv_buffer_.rd_size() >= (ws_header_.headlength + ws_header_.reallength)) {
@@ -423,29 +420,27 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 				}
 			} while (0);
 		}
-		std::string pack_close_data() {
-			std::string closedata(reinterpret_cast<
-				std::string::const_pointer>(&rcv_buffer_.rd_buf()[ws_header_.headlength]), ws_header_.reallength);
-			if (mask_dec(closedata.data(), closedata.length())) {
-				std::uint16_t close_code = ntohs(*(std::uint16_t*)(closedata.data()));
-				int reasonLen = ws_header_.reallength - sizeof(std::uint16_t);
-				std::string closeraeson(&closedata.data()[sizeof(UINT16)], reasonLen);
-				std::cout << "websocket_close_handshark closecode:" << close_code << ", close reason:" << closeraeson << std::endl;
-
-				return closedata;
+		// 关闭握手日志：关闭code，关闭reason.
+		inline void close_log(const std::string& closedata) {
+			constexpr int codelen = sizeof(std::uint16_t);
+			if (closedata.length() <= codelen) {
+				return;
 			}
-			return "";
+			std::uint16_t close_code = ntohs(*(std::uint16_t*)(closedata.data()));
+			std::string close_reason;
+			int reasonLen = ws_header_.reallength - codelen;
+			if (reasonLen > 0) {
+				close_reason = closedata.substr(codelen, reasonLen);
+			}
+			std::cout << "websocket_close_handshark closecode:" << close_code << ", close reason:" << close_reason << std::endl;
 		}
 		
 	private:
-		//握手阶段相关
-		HEADER_MAP header_map_;//客户端发送的协议信息
+		HEADER_MAP header_map_;
 
-		//接收数据，解析协议阶段相关
-		WebSocketHeader ws_header_;//websocket协议头
+		WebSocketHeader ws_header_;
 
-		//打包数据，打包协议相关
-		ProtoEnv penv_;//打包数据包环境数据(每次打包数据时必须设定环境，要不以默认方式打包协议)
+		ProtoEnv penv_;
 
 		t_buffer_cmdqueue<> rcv_buffer_;
 		t_buffer_cmdqueue<> snd_buffer_;

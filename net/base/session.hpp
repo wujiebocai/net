@@ -24,7 +24,7 @@ namespace net {
 		using session_type = Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>;
 		using session_ptr_type = std::shared_ptr<session_type>;
 		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE, svr_tab>;
-		using transferdata_type = TransferData<Session<SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE>, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE, svr_tab>;
+		using transferdata_type = TransferData<session_type, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE, svr_tab>;
 		using sessionmgr_type = SessionMgr<session_type>;
 		using key_type = typename std::conditional<is_udp_socket_v<SOCKETTYPE>, asio::ip::udp::endpoint, std::size_t>::type;
 	public:

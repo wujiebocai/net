@@ -30,9 +30,9 @@ namespace net {
 		template<class ... Args>
 		explicit NetProto(Args&&... args) : derive_(static_cast<DRIVERTYPE&>(*this)) {}
 
-		void parse_proto(error_code ec, const std::string& s) {
+		inline void parse_proto(error_code ec, const std::string& s) {
 			if (shared_flag_ == 0) {
-				if (strstr(s.data(), "Upgrade: websocket") != NULL) {//握手处理
+				if (std::strstr(s.data(), "Upgrade: websocket") != NULL) {//握手处理
 					ws_.parse_http_info(s.c_str());
 					std::string respose;
 					auto ret = ws_.get_handshark_pack(respose);
@@ -45,6 +45,7 @@ namespace net {
 			}
 			ws_.parse(s, [this](int opcode, std::string& data) {
 				if (opcode == 8) { //关闭握手
+					ws_.close_log(data);
 					this->derive_.send(data);
 					shared_flag_ = 0;
 					return;
@@ -59,7 +60,7 @@ namespace net {
 			std::string buffer;
 			int packlen = ws_.get_pack_data(data, buffer);
 			if (packlen > 0) {
-				data = buffer;
+				data = std::move(buffer);
 				return true;
 			}
 			return false;
@@ -71,5 +72,12 @@ namespace net {
 	};
 
 	// http(有待实现)
-
+	template<class DRIVERTYPE, class SVRORCLI>
+	class NetProto<DRIVERTYPE, http_proto_flag, SVRORCLI> {
+	public:
+		template<class ... Args>
+		explicit NetProto(Args&&... args) : derive_(static_cast<DRIVERTYPE&>(*this)) {}
+	protected:
+		DRIVERTYPE& derive_;
+	};
 }
