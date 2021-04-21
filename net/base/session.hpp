@@ -26,7 +26,8 @@ namespace net {
 		using stream_type = StreamType<session_type, SOCKETTYPE, STREAMTYPE, svr_tab>;
 		using transferdata_type = TransferData<session_type, SOCKETTYPE, STREAMTYPE, PROTOCOLTYPE, svr_tab>;
 		using sessionmgr_type = SessionMgr<session_type>;
-		using key_type = typename std::conditional<is_udp_socket_v<SOCKETTYPE>, asio::ip::udp::endpoint, std::size_t>::type;
+		//using key_type = typename std::conditional<is_udp_socket_v<SOCKETTYPE>, asio::ip::udp::endpoint, std::size_t>::type;
+		using key_type = std::size_t;
 	public:
 		template<class ...Args>
 		explicit Session(sessionmgr_type& sessions, FuncProxyImpPtr & cbfunc, NIO & io,
@@ -133,7 +134,8 @@ namespace net {
 				return reinterpret_cast<key_type>(this);
 			}
 			else if constexpr (is_udp_socket_v<SOCKETTYPE>) {
-				return this->remote_endpoint_;
+				//return this->remote_endpoint_;
+				return std::hash<asio::ip::udp::endpoint>()(this->remote_endpoint_);
 			}
 		}
 

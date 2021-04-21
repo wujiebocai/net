@@ -215,7 +215,7 @@ namespace net {
 			if (!ec) {
 				std::string sdata(static_cast<std::string_view::const_pointer>(this->buffer_.rd_buf()), bytes_recvd);
 
-				std::shared_ptr<SESSIONTYPE> session_ptr = this->server_.get_sessions().find(this->remote_endpoint_);
+				std::shared_ptr<SESSIONTYPE> session_ptr = this->server_.get_sessions().find(std::hash<asio::ip::udp::endpoint>()(remote_endpoint_));
 				if (!session_ptr) {
 					//std::cout << "udp acceptor: " << remote_endpoint_.data() << ", aa:" << std::hash<asio::ip::udp::endpoint>()(remote_endpoint_) << std::endl;
 					std::shared_ptr<SESSIONTYPE> session_ptr = this->server_.make_session();
