@@ -282,6 +282,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			return 0;
 		}
 		inline int fetch_packagedata(const char* msg, int& pos) {
+			std::ignore = msg;
 			ws_header_.headlength = pos;
 			pos += ws_header_.reallength;
 			return 0;

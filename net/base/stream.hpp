@@ -234,6 +234,7 @@ namespace net {
 		}
 		
 		inline void handle_recv(const error_code& ec, const std::string& s) {
+			std::ignore = ec;
 			if (!this->derive_.is_started())
 				return;
 			if (!kcp_) {
