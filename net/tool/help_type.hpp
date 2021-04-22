@@ -50,8 +50,8 @@ namespace net {
 
 		template<class F, class ...C>
 		explicit func_proxy(F&& f, C&&... c) {
-			std::size_t argc = sizeof...(C);
-			static_assert(sizeof...(C) == 0 || sizeof...(C) == 1, "c can only be none or one");
+			constexpr std::size_t argc = sizeof...(C);
+			static_assert(argc == 0 || argc == 1, "c can only be none or one");
 			this->bind(std::forward<F>(f), std::forward<C>(c)...);
 		}
 
@@ -103,7 +103,7 @@ namespace net {
 
 		inline bool check(IDXTYPE evt) {
 			//return this->func_proxy_[evt];
-			auto& item = this->func_proxy_.find(evt);
+			const auto& item = this->func_proxy_.find(evt);
 			if (item != this->func_proxy_.end()) {
 				return true;
 			}
@@ -300,7 +300,7 @@ namespace net {
 			return this->bind_t(evt, func_proxy<Args...>(f, std::forward<T>(c)));
 		}
 		template<class Callable, typename = std::enable_if_t<std::is_class<Callable>::value>>
-		inline bool bind(IDXTYPE evt, Callable& lam) {
+		inline bool bind(IDXTYPE evt, Callable&& lam) {
 			return this->bind(evt, &Callable::operator(), std::forward<Callable>(lam));
 		}
 		//std::shared_ptr

@@ -4,7 +4,7 @@ file(GLOB SRC "*.cpp" "*.hpp" "*.h" "*.c")
 set(EXE_NAME netdemo)
 source_group("" FILES ${SRC})
 ADD_EXECUTABLE(${EXE_NAME} ${SRC})
-target_link_libraries(${EXE_NAME} ${OPENSSL_LIBRARY})
+target_link_libraries(${EXE_NAME} ${OPENSSL_LIBRARY} ${THREAD_LIBRARY})
 
 
 #add_custom_command(

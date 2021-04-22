@@ -129,7 +129,7 @@ namespace net {
 			return (this->state_ == State::stopped && !this->socket_.lowest_layer().is_open());
 		}
 
-		inline const key_type hash_key() const {
+		inline key_type hash_key() const {
 			if constexpr (is_tcp_socket_v<SOCKETTYPE>) {
 				return reinterpret_cast<key_type>(this);
 			}
@@ -167,11 +167,11 @@ namespace net {
 	protected:
 		NIO & cio_;
 
-		std::atomic<State> state_ = State::stopped;
-
+		FuncProxyImpPtr & cbfunc_;
+		
 		sessionmgr_type& sessions_;
 
-		FuncProxyImpPtr & cbfunc_;
+		std::atomic<State> state_ = State::stopped;
 
 		t_buffer_cmdqueue<> rbuff_;
 

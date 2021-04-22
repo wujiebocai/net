@@ -14,9 +14,14 @@ namespace net {
 		explicit NetProto(Args&&... args) : derive_(static_cast<DRIVERTYPE&>(*this)) {}
 
 		inline void parse_proto(error_code ec, const std::string& s) {
+			if (ec) {
+				std::cout << "parse websocket error: " << ec.message() << std::endl;
+				return;
+			}
 			this->derive_.cbfunc()->call(Event::recv, this->derive_.self_shared_ptr(), std::move(s));
 		}
-		inline bool pack_proto(std::string& data) {
+		template<class DATATYPE>
+		inline bool pack_proto(DATATYPE&& data) {
 			return true;
 		}
 	protected:
@@ -31,6 +36,10 @@ namespace net {
 		explicit NetProto(Args&&... args) : derive_(static_cast<DRIVERTYPE&>(*this)) {}
 
 		inline void parse_proto(error_code ec, const std::string& s) {
+			if (ec) {
+				std::cout << "parse websocket error: " << ec.message() << std::endl;
+				return;
+			}
 			if (shared_flag_ == 0) {
 				if (std::strstr(s.data(), "Upgrade: websocket") != NULL) {//握手处理
 					ws_.parse_http_info(s.c_str());
@@ -53,12 +62,13 @@ namespace net {
 				this->derive_.cbfunc()->call(Event::recv, this->derive_.self_shared_ptr(), std::move(data));
 			});
 		}
-		inline bool pack_proto(std::string& data) {
+		template<class DATATYPE>
+		inline bool pack_proto(DATATYPE&& data) {
 			if (shared_flag_ <= 0) {
 				return true;
 			}
 			std::string buffer;
-			int packlen = ws_.get_pack_data(data, buffer);
+			int packlen = ws_.get_pack_data(std::forward<DATATYPE>(data), buffer);
 			if (packlen > 0) {
 				data = std::move(buffer);
 				return true;

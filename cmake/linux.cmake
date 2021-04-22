@@ -23,10 +23,10 @@ add_definitions(-DASIO_HAS_EPOLL)
 # openssl
 # find_package(OpenSSL REQUIRED)
 # set(OPENSSL_LIBRARY ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
-set(OPENSSL_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/thirds/openssl/${LIBPROTOBUF_PLATFORM}/include")
+set(OPENSSL_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/3rd/openssl")
 set(OPENSSL_LIBRARY 
-    "${PROJECT_SOURCE_DIR}/thirds/openssl/${LIBPROTOBUF_PLATFORM}/lib/libssl.so"
-    "${PROJECT_SOURCE_DIR}/thirds/openssl/${LIBPROTOBUF_PLATFORM}/lib/libcrypto.so")
+    "${PROJECT_SOURCE_DIR}/3rd/lib/ubuntu/libssl.a"
+    "${PROJECT_SOURCE_DIR}/3rd/lib/ubuntu/libcrypto.a")
 
 # zlib
 # find_package(ZLIB REQUIRED)

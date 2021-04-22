@@ -9,17 +9,17 @@ namespace net {
 	template<class ... Args>
 	class Acceptor {
 	public:
-		template<class ... Args>
-		explicit Acceptor(Args&&... args) {}
+		template<class ... FArgs>
+		explicit Acceptor(FArgs&&... args) {}
 	};
 
 	template<class SERVERTYPE, class SESSIONTYPE>
 	class Acceptor<SERVERTYPE, SESSIONTYPE, asio::ip::tcp::socket> {
 	public:
 		Acceptor(NIO& io)
-			: cio_(io)
+			: server_(static_cast<SERVERTYPE&>(*this))
+			, cio_(io)
 			, acceptor_(this->cio_.context())
-			, server_(static_cast<SERVERTYPE&>(*this))
 			, acceptor_timer_(this->cio_.context())
 		{}
 
@@ -135,9 +135,9 @@ namespace net {
 	class Acceptor<SERVERTYPE, SESSIONTYPE, asio::ip::udp::socket&> {
 	public:
 		explicit Acceptor(NIO& io) 
-			: acceptor_(io.context())
+			: server_(static_cast<SERVERTYPE&>(*this))
+			, acceptor_(io.context())
 			, cio_(io)
-			, server_(static_cast<SERVERTYPE&>(*this))
 			, remote_endpoint_() {}
 
 		~Acceptor() = default;

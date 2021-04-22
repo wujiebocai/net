@@ -55,9 +55,9 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 
 	struct WebSocketHeader {
 		WebSocketMark mark;
-		std::uint64_t reallength = 0;//Êı¾İ°ü³¤¶È
+		std::uint64_t reallength = 0;//æ•°æ®åŒ…é•¿åº¦
 		std::uint8_t maskkey[4] = { 0 };
-		std::uint32_t headlength = 0;//Ğ­ÒéÍ·³¤¶È
+		std::uint32_t headlength = 0;//åè®®å¤´é•¿åº¦
 
 		inline void reset() {
 			mark.reset();
@@ -67,7 +67,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 		}
 		
 		inline void log() {
-			std::cout << "===============================½ÓÊÕµ½µÄĞ­Òé°üÍ·Ïà¹ØĞÅÏ¢=====================================" << std::endl;
+			std::cout << "===============================æ¥æ”¶åˆ°çš„åè®®åŒ…å¤´ç›¸å…³ä¿¡æ¯=====================================" << std::endl;
 			std::cout << "fin: " << (int)this->mark.fin << "\nrsv1: " << (int)this->mark.rsv1 << "\nrsv2: " << (int)this->mark.rsv2 << "\nrsv3: " << (int)this->mark.rsv3
 				<< "\nopcode: " << (int)this->mark.opcode << "\nmask: " << (int)this->mark.mask << "\nmask_key: " << (int*)this->maskkey << "\npayloadlen: " << (int)this->mark.payloadlen
 				<< "\nheadlength: " << this->headlength << "\nreallength: " << this->reallength << std::endl;
@@ -119,7 +119,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			
 			return true;
 		}
-		//Éú³Ékey(chrome°æ±¾)
+		//ç”Ÿæˆkey(chromeç‰ˆæœ¬)
 		inline bool generate_key_chrome(std::string& key) {
 			key = header_map_["Sec-WebSocket-Key"];
 			if (key.empty()) {
@@ -132,7 +132,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 
 			return true;
 		}
-		//Éú³Ékey(safari°æ±¾), ¸Ã½Ó¿ÚÓĞ´ıÕæÊµ»·¾³²âÊÔ
+		//ç”Ÿæˆkey(safariç‰ˆæœ¬), è¯¥æ¥å£æœ‰å¾…çœŸå®ç¯å¢ƒæµ‹è¯•
 		inline bool generate_key_safari(std::string& key) {
 			std::string const& key1 = header_map_["Sec-WebSocket-Key1"];
 			std::string const& key2 = header_map_["Sec-WebSocket-Key2"];
@@ -218,11 +218,11 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			}
 
 			std::size_t src_len = strlen(buff);
-			char key3[8] = {0}; // »ñÈ¡ key3£¬¼´ÕıÎÄ×îºóµÄ8Î»×Ö·û
+			if (src_len <= 8) {
+				return 0;
+			}
+			char key3[9] = {0}; // è·å– key3ï¼Œå³æ­£æ–‡æœ€åçš„8ä½å­—ç¬¦
 			std::memcpy(key3, &buff[src_len - 8], 8);
-			/*for (size_t i = 0; i < 8; i++) {
-				key3[i] = buff[src_len - 8 + i];
-			}*/
 			header_map_["Sec-WebSocket-Key3"] = key3;
 
 			return 0;
@@ -287,13 +287,13 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			return 0;
 		}
 
-		inline bool mask_dec(char* msg, int len) {
+		inline bool mask_dec(char* msg, std::uint64_t len) {
 			if (len != ws_header_.reallength) {
 				return false;
 			}
 			if (ws_header_.mark.mask != 0) {
-				for (int i = 0; i < len; i++) {
-					int j = i % 4;
+				for (std::uint64_t i = 0; i < len; i++) {
+					std::uint64_t j = i % 4;
 					msg[i] = msg[i] ^ ws_header_.maskkey[j];
 				}
 			}
@@ -338,11 +338,11 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 			}
 
 			auto slen = msgLen;
-			if (msgLen < 126) // Èç¹û²»ĞèÒªÀ©Õ¹³¤¶ÈÎ», Á½¸ö×Ö½Ú´æ·Å fin(1bit) + rsv[3](1bit) + opcode(4bit); mask(1bit) + payloadLength(7bit);  
+			if (msgLen < 126) // å¦‚æœä¸éœ€è¦æ‰©å±•é•¿åº¦ä½, ä¸¤ä¸ªå­—èŠ‚å­˜æ”¾ fin(1bit) + rsv[3](1bit) + opcode(4bit); mask(1bit) + payloadLength(7bit);  
 				slen += 2;
-			else if (msgLen < 0xFFFF) // Èç¹ûÊı¾İ³¤¶È³¬¹ı126 ²¢ÇÒĞ¡ÓÚÁ½¸ö×Ö½Ú, ÎÒÃÇÔÙÓÃºóÃæµÄÁ½¸ö×Ö½Ú(16bit) ±íÊ¾ uint16  
+			else if (msgLen < 0xFFFF) // å¦‚æœæ•°æ®é•¿åº¦è¶…è¿‡126 å¹¶ä¸”å°äºä¸¤ä¸ªå­—èŠ‚, æˆ‘ä»¬å†ç”¨åé¢çš„ä¸¤ä¸ªå­—èŠ‚(16bit) è¡¨ç¤º uint16  
 				slen += 4;
-			else // Èç¹ûÊı¾İ¸ü³¤µÄ»°, ÎÒÃÇÊ¹ÓÃºóÃæµÄ8¸ö×Ö½Ú(64bit)±íÊ¾ uint64  
+			else // å¦‚æœæ•°æ®æ›´é•¿çš„è¯, æˆ‘ä»¬ä½¿ç”¨åé¢çš„8ä¸ªå­—èŠ‚(64bit)è¡¨ç¤º uint64  
 				slen += 10;
 			
 			if (mask & 0x1)
@@ -420,7 +420,7 @@ typedef std::unordered_map<std::string, std::string> HEADER_MAP;
 				}
 			} while (0);
 		}
-		// ¹Ø±ÕÎÕÊÖÈÕÖ¾£º¹Ø±Õcode£¬¹Ø±Õreason.
+		// å…³é—­æ¡æ‰‹æ—¥å¿—ï¼šå…³é—­codeï¼Œå…³é—­reason.
 		inline void close_log(const std::string& closedata) {
 			constexpr int codelen = sizeof(std::uint16_t);
 			if (closedata.length() <= codelen) {

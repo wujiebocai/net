@@ -13,8 +13,8 @@ namespace net {
 	template<class ... Args>
 	class NetStream {
 	public:
-		template<class ... Args>
-		explicit NetStream(Args&&... args) {}
+		template<class ... FArgs>
+		explicit NetStream(FArgs&&...) {}
 	};
 
 	template<class ... Args>
@@ -55,6 +55,7 @@ namespace net {
 			if constexpr (is_udp_socket_v<SOCKETTYPE> && is_svr_v<SVRORCLI>) {
 				return;
 			}
+			std::ignore = dptr;
 			socket_type::close();
 		}
 
@@ -85,7 +86,7 @@ namespace net {
 			: socket_type(std::forward<Args>(args)...)
 			, derive_(static_cast<DRIVERTYPE&>(*this))
 			, ssl_io_(io)
-			, ssl_stream_(socket_, ctx)
+			, ssl_stream_(this->socket_, ctx)
 			, ssl_timer_(io.context())
 			, ssl_type_(type)
 		{
@@ -458,11 +459,13 @@ namespace net {
 		}
 
 	protected:
-		asio::ip::udp::endpoint  remote_endpoint_;
-
 		DRIVERTYPE& derive_;
 
 		NIO& kcp_io_;
+
+		net::Timer kcp_timer_;
+
+		asio::ip::udp::endpoint  remote_endpoint_;	
 
 		kcp::ikcpcb* kcp_ = nullptr;
 
@@ -470,6 +473,6 @@ namespace net {
 
 		bool send_fin_ = true;
 
-		net::Timer kcp_timer_;
+		
 	};
 }

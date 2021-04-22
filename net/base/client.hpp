@@ -26,9 +26,9 @@ namespace net {
 			: IoPoolImp(concurrency)
 			, netstream_type(client_place{})
 			, cio_(iopool_.get(0))
-			, cbfunc_(std::make_shared<CBPROXYTYPE>())
 			, sessions_(cio_)
 			, max_buffer_size_(max_buffer_size)
+			, cbfunc_(std::make_shared<CBPROXYTYPE>())
 		{
 			this->iopool_.start();
 		}
@@ -96,10 +96,12 @@ namespace net {
 
 		inline session_ptr_type make_session() {
 			auto& cio = this->iopool_.get();
+#if defined(NET_USE_SSL)
 			if constexpr (is_ssl_streamtype_v<STREAMTYPE>) {
 				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio, this->max_buffer_size_
 					, cio, *this, asio::ssl::stream_base::client, cio.context());
 			}
+#endif
 			if constexpr (is_binary_streamtype_v<STREAMTYPE>) {
 				return std::make_shared<session_type>(this->sessions_, this->cbfunc_, cio, this->max_buffer_size_
 					, cio.context());
@@ -138,13 +140,13 @@ namespace net {
 			return session_ptr_type(this->sessions_.find_if(fn));
 		}
 	protected:
-		SessionMgr<session_type> sessions_;
 		NIO & cio_; 
+		SessionMgr<session_type> sessions_;
 
 		std::size_t max_buffer_size_;
 
-		std::atomic<State> state_ = State::stopped;
-
 		FuncProxyImpPtr cbfunc_;
+
+		std::atomic<State> state_ = State::stopped;
 	};
 }

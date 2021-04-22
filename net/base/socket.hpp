@@ -142,7 +142,7 @@ namespace net {
 				}
 				else {
 					std::ignore = true;
-					static_assert(false, "Only tcp socket has the no_delay option");
+					//static_assert(false, "Only tcp socket has the no_delay option");
 				}
 			}
 			catch (system_error & e) {
@@ -158,7 +158,7 @@ namespace net {
 				}
 				else {
 					std::ignore = true;
-					static_assert(false, "Only tcp socket has the no_delay option");
+					//static_assert(false, "Only tcp socket has the no_delay option");
 				}
 			}
 			catch (system_error & e) {

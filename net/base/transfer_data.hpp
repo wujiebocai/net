@@ -85,7 +85,7 @@ namespace net {
 					asio::detail::throw_error(asio::error::invalid_argument);
 
 				return this->do_resolve_send(std::forward<std::string>(host), std::forward<std::string>(port),
-					std::forward<std::string>(data), [](const error_code&, std::size_t) {});
+					std::move(data), [](const error_code&, std::size_t) {});
 			}
 			catch (system_error& e) { set_last_error(e); }
 			catch (std::exception&) { set_last_error(asio::error::eof); }

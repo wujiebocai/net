@@ -51,6 +51,8 @@ static std::string_view dh =
 template<class SVRTYPE>
 class SvrProxy : public SVRTYPE {
 public:
+	using session_ptr_type = typename SVRTYPE::session_ptr_type;
+public:
 	SvrProxy(std::size_t concurrency = std::thread::hardware_concurrency() * 2, std::size_t max_buffer_size = (std::numeric_limits<std::size_t>::max)()) 
 		: SVRTYPE(concurrency, max_buffer_size) 
 		, testtimer_(this->get_iopool().get(0)){
@@ -84,6 +86,8 @@ private:
 
 template<class CLITYPE>
 class CliProxy : public CLITYPE {
+public:
+	using session_ptr_type = typename CLITYPE::session_ptr_type;
 public:
 	CliProxy(std::size_t concurrency = std::thread::hardware_concurrency() * 2, std::size_t max_buffer_size = (std::numeric_limits<std::size_t>::max)())
 		: CLITYPE(concurrency, max_buffer_size) {
